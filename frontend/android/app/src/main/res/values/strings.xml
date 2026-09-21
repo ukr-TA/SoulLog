@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SoulLog</string>
+    <string name="title_activity_main">SoulLog</string>
+    <string name="package_name">com.threeu.soullog</string>
+    <string name="custom_url_scheme">com.threeu.soullog</string>
+</resources>

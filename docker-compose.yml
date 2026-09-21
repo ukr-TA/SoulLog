@@ -1,0 +1,97 @@
+# SoulLog, whole stack, one command:
+#
+#     docker compose up --build
+#
+# Postgres, Redis, the Django/ASGI backend and the built frontend. The
+# frontend lands on http://localhost:5173 and the API on
+# http://localhost:8000, matching the ports the local (non-Docker) setup
+# uses, so `SETUP.md`'s instructions and these describe the same addresses.
+#
+# This file is for local development and for demonstrating the deployment
+# shape. A real deployment supplies its own secrets rather than the
+# defaults below, and would put a TLS terminator in front.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-soullog_dev}
+      POSTGRES_USER: ${DB_USER:-soullog}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-soullog_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # The backend waits for this rather than for the container to start:
+      # Postgres accepts connections a few seconds after the process does.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-soullog} -d ${DB_NAME:-soullog_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    # Redis is the channel layer, which is what lets more than one backend
+    # worker deliver a message to a socket held by a different worker.
+    # With one process and no Redis the in-memory layer works; with three
+    # Gunicorn workers it does not, which is why this is here.
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-key-change-me}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      DB_NAME: ${DB_NAME:-soullog_dev}
+      DB_USER: ${DB_USER:-soullog}
+      DB_PASSWORD: ${DB_PASSWORD:-soullog_dev_password}
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      TIME_ZONE: ${TIME_ZONE:-UTC}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Uploads survive a rebuild. In production this is object storage
+      # instead — set USE_S3=True and the bucket variables, and nothing
+      # else changes.
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+    # Migrations run on start so a fresh volume comes up working. In a
+    # deployment with several instances this belongs in a release step
+    # rather than in every worker's startup.
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.asgi:application
+               --worker-class uvicorn.workers.UvicornWorker
+               --workers 3 --bind 0.0.0.0:8000
+               --access-logfile - --error-logfile -"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  media_data:

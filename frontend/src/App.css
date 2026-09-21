@@ -1,0 +1,68 @@
+#root {
+  text-align: center;
+  width: 100vw;
+  font-family: 'Merriweather';
+}
+
+.app-container {
+  min-height: 100vh; /* Use vh instead of % */
+  min-height: 100dvh; /* Dynamic viewport height (newer browsers) */
+}
+
+/* For fixed headers/navigation */
+.header {
+  position: sticky; /* or fixed */
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  justify-content: space-between;
+  display: flex;
+  align-items: center;
+  opacity: 0.99;
+  /* Avoid position: fixed if possible, use sticky instead */
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  /* Enable momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  transition: margin-left 0.3s ease;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Bottom navigation/footer */
+.bottom-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  justify-content: space-around;
+  display: flex;
+  align-items: center;
+  /* Or use position: fixed with proper safe-area handling */
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 2rem;
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+/* When the container (or screen) is narrower than 800px */
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+}

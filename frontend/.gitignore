@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.vite
+# The native projects are committed (see the root .gitignore for why);
+# only their build output is ignored, and that is listed there.
+icons/
+# Local environment files. `.env.example` is committed on purpose.
+.env
+.env.*
+!.env.example

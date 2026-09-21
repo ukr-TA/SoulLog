@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!--
+        Permissions.
+
+        Only what SoulLog actually uses. A manifest that asks for more
+        than the app needs costs the user trust at install time and costs
+        the developer a store review, so nothing speculative is listed
+        here: the mentor calling feature, when it exists, adds CAMERA
+        then and not before.
+    -->
+
+    <!-- Talking to the API and the live message socket. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Voice journal entries. CreateJournal records with MediaRecorder,
+        which needs the microphone. Android 6+ also prompts at the moment
+        of first use; declaring it here is what makes that prompt
+        possible.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+        Attachments are chosen through the system picker, which hands the
+        app one file the user selected and needs no storage permission on
+        any supported Android version. READ_EXTERNAL_STORAGE is therefore
+        deliberately absent: it would be a request to read the user's
+        whole library in order to do something the picker already does.
+    -->
+
+    <!--
+        The microphone is used when available but the app is perfectly
+        usable without one, so it must not be a hardware requirement —
+        otherwise Play would hide SoulLog from devices that lack it.
+    -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+</manifest>

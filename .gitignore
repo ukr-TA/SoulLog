@@ -1,0 +1,48 @@
+# Backend
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/.env
+backend/media/
+backend/staticfiles/
+backend/db.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Capacitor native projects.
+#
+# These are committed, not ignored. They started as `npx cap add` output,
+# but they now carry configuration written by hand — the Android manifest
+# declares RECORD_AUDIO and marks the microphone non-required, and the iOS
+# Info.plist carries the usage strings iOS refuses a build without.
+# Regenerating them would throw that away, silently, and the first symptom
+# would be a rejected submission. Build output inside them is ignored
+# instead.
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/app/src/main/assets/public/
+frontend/android/app/src/main/assets/capacitor.config.json
+frontend/android/app/src/main/assets/capacitor.plugins.json
+frontend/ios/App/Pods/
+frontend/ios/App/App/public/
+frontend/ios/App/App/capacitor.config.json
+frontend/ios/App/App/capacitor.plugins.json
+frontend/ios/App/Podfile.lock
+
+# Local service data
+dump.rdb
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

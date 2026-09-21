@@ -1,0 +1,187 @@
+# CI for SoulLog.
+#
+# Runs the real test suite against a real Postgres, because the privacy
+# rules this project depends on are enforced in querysets and database
+# constraints — a suite run against SQLite would not be exercising the
+# same code.
+#
+# The frontend job typechecks, lints and builds. The build is the part
+# that matters: a type error that only appears under `vite build` is the
+# kind of thing that otherwise gets found during a deploy.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: soullog_test
+          POSTGRES_USER: soullog
+          POSTGRES_PASSWORD: soullog_test_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      SECRET_KEY: ci-only-key-not-used-anywhere-else
+      DEBUG: "True"
+      DB_NAME: soullog_test
+      DB_USER: soullog
+      DB_PASSWORD: soullog_test_password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      # No REDIS_URL: the in-memory channel layer is used, which is what
+      # the WebSocket tests exercise and what a developer running
+      # `manage.py runserver` locally gets.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Check for missing migrations
+        working-directory: backend
+        # Catches a model change committed without its migration, which
+        # otherwise fails at deploy time instead of here.
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run tests
+        working-directory: backend
+        run: python manage.py test --verbosity 2
+
+      - name: Django deployment checks
+        working-directory: backend
+        env:
+          DEBUG: "False"
+          # 50+ characters with real variety: the production guard in
+          # settings.py refuses to start with anything weaker, and
+          # `check --deploy` warns about it separately.
+          SECRET_KEY: ci-only-5xK9pQ2mVtR7wYnB4zL8cJ3hD6sF1gA0eU5iO9pT2rW7yX4mN
+          REDIS_URL: ""
+          ALLOWED_HOSTS: example.com
+        # `--deploy` is the check that would otherwise be run for the
+        # first time during an incident.
+        run: python manage.py check --deploy --fail-level WARNING
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+
+    # The mobile build was the one target nothing ever checked, which is
+    # how a `server.url` pointing at somebody's laptop survived in the
+    # Capacitor config: it broke every build except the one it was
+    # written on, and no build was ever made. Assembling the debug APK
+    # here means a change that breaks the native project is caught in a
+    # pull request rather than the first time someone tries to ship.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build web assets
+        working-directory: frontend
+        # No CAP_SERVER_URL: this must produce a build that loads the
+        # bundled app, exactly like a release.
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api/v1
+        run: npm run build
+
+      - name: Sync Capacitor
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Fail if the build points at a dev server
+        working-directory: frontend
+        # A guard rather than a comment. If `server.url` is ever
+        # reintroduced unconditionally, this stops it here.
+        run: |
+          if grep -q '"server"' android/app/src/main/assets/capacitor.config.json; then
+            echo "capacitor.config.json contains a server block — a release build must load the bundled app."
+            cat android/app/src/main/assets/capacitor.config.json
+            exit 1
+          fi
+
+      - name: Assemble debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soullog-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/*.apk
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t soullog-backend ./backend
+      - name: Build frontend image
+        run: docker build -t soullog-frontend ./frontend

@@ -20,7 +20,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if command -v brew >/dev/null 2>&1; then
   PG_BIN="$(brew --prefix postgresql@16 2>/dev/null)/bin"
   if [ -x "$PG_BIN/pg_isready" ] && ! "$PG_BIN/pg_isready" -q -h localhost; then
-    echo "Starting Postgres…"
+    echo "Starting Postgres..."
     brew services start postgresql@16 >/dev/null
     sleep 2
   fi
@@ -28,7 +28,7 @@ fi
 
 cleanup() {
   echo
-  echo "Stopping…"
+  echo "Stopping..."
   kill 0 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
@@ -38,12 +38,12 @@ trap cleanup INT TERM EXIT
   # shellcheck disable=SC1091
   source venv/bin/activate
   python manage.py migrate --noinput >/dev/null
-  exec python manage.py runserver 127.0.0.1:8000 2>&1 | sed -u 's/^/[api] /'
+  exec python manage.py runserver 127.0.0.1:8000 2>&1 | awk '{ print "[api] " $0; fflush() }'
 ) &
 
 (
   cd "$ROOT/frontend"
-  exec npm run dev -- --host 127.0.0.1 --port 5173 2>&1 | sed -u 's/^/[web] /'
+  exec npm run dev -- --host 127.0.0.1 --port 5173 2>&1 | awk '{ print "[web] " $0; fflush() }'
 ) &
 
 echo

@@ -44,11 +44,11 @@ ok "Homebrew"
 brew_install() {
   local formula="$1"
   if brew list --formula "$formula" >/dev/null 2>&1; then
-    ok "$formula already installed"
+    ok "${formula} already installed"
   else
-    echo "  installing $formula…"
+    echo "  installing ${formula}..."
     brew install "$formula"
-    ok "$formula installed"
+    ok "${formula} installed"
   fi
 }
 

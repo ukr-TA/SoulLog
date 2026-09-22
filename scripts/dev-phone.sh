@@ -90,18 +90,20 @@ for _ in $(seq 1 40); do
   sleep 1
 done
 
-# A brand-new tunnel address takes a little while to go live. A phone
-# that opens it too early gets "site can't be reached" — and then keeps
-# remembering that for several minutes. So only show the address once it
-# actually answers here.
+# A brand-new tunnel address takes a little while to go live, and a
+# phone (or this Mac) that looks it up too early remembers "not found" for
+# minutes. So: check it through Cloudflare's own DNS (not this Mac's, which
+# can hold on to that "not found"), give up waiting after ~40 seconds, and
+# show the address either way.
 if [ -n "$URL" ]; then
-  echo "Waiting for the phone address to go live..."
-  READY=""
-  for _ in $(seq 1 60); do
-    if curl -s -o /dev/null --max-time 5 "$URL"; then READY=1; break; fi
+  echo "Waiting for the phone address to go live (up to ~40s)..."
+  for _ in $(seq 1 20); do
+    if curl -s -o /dev/null --max-time 3 --doh-url https://1.1.1.1/dns-query "$URL" 2>/dev/null; then
+      break
+    fi
     sleep 2
   done
-  [ -z "$READY" ] && echo "  (It isn't answering yet — give it another minute before opening it.)"
+  sleep 3   # a moment more for the phone's own DNS to catch up
 fi
 
 echo

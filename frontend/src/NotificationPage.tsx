@@ -74,6 +74,8 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
   // on the bell/left bar clear. The rows that were new stay highlighted
   // for the rest of this visit, so you can still tell which they were.
   const newThisVisit = useRef<Set<number>>(new Set());
+  // Phones fire a "hover" on tap that never ends; only real pointers get the hover shade.
+  const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
 
   /**
    * New notifications (unread, or read just now by opening this page) stay
@@ -83,7 +85,7 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
   const isFresh = (row: { id: number; isRead: boolean }) =>
     !row.isRead || newThisVisit.current.has(row.id);
   const rowBackground = (row: { id: number; isRead: boolean }) =>
-    isFresh(row) ? theme.accent + '1A' : 'rgba(0, 0, 0, 0.18)';
+    isFresh(row) ? theme.accent + '26' : 'rgba(0, 0, 0, 0.28)';
 
   const load = useCallback(async () => {
     try {
@@ -367,12 +369,16 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
                 background: rowBackground(notification),
+                // A gold edge on new ones — clear even on a small, bright phone screen.
+                boxShadow: isFresh(notification) ? `inset 3px 0 0 ${theme.accent}` : 'none',
                 position: 'relative'
               }}
               onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => {
+                if (!canHover) return;
                 setTargetBackground(e.currentTarget, theme.border + '20');
               }}
               onMouseLeave={(e: ReactMouseEvent<HTMLElement>) => {
+                if (!canHover) return;
                 setTargetBackground(e.currentTarget, rowBackground(notification));
               }}
             >
@@ -395,7 +401,7 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                 gap: isMobile ? '0.75rem' : '1rem',
                 alignItems: 'flex-start',
                 // Read ones step back a little — still easy to read.
-                opacity: isFresh(notification) ? 1 : 0.72,
+                opacity: isFresh(notification) ? 1 : 0.65,
                 transition: 'opacity 0.3s ease'
               }}>
                 {/* User Avatar */}

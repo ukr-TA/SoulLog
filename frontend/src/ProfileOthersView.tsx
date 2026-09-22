@@ -19,8 +19,8 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
-import { MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Phone, Mail, User, MoreHorizontal } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MapPin, Calendar, MessageCircle, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Phone, Mail, User, MoreHorizontal, UserPlus, UserCheck, UserX, Clock, BellPlus, BellRing, Ban, ArrowLeft, ChevronRight } from 'lucide-react';
 import { ApiError, del, get, post } from './api';
 import { profileShare, shareOrCopy } from './links';
 import { buildTheme } from './theme';
@@ -167,6 +167,22 @@ const EMPTY: ViewedUser = {
 const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, username, onBack, onOpenConversation, onOpenPost }: OthersProfileProps) => {
   const [darkMode] = useState(darkModeProp ?? true);
   const [isFollowing, setIsFollowing] = useState(false);
+  // The ⋯ menu (remove friend, block), closed by a tap anywhere else.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: Event) => {
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMoreOpen(false); };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
   // The photo URL that failed to load, so the initial shows instead.
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
   const [userData, setUserData] = useState(EMPTY);
@@ -406,7 +422,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
 
   const ProfileCard = ({ children, className = "" }: ProfileCardProps) => (
     <div 
-      className={`rounded-xl shadow-lg border p-6 mb-6 transition-all duration-300 ${className}`}
+      className={`rounded-2xl shadow-lg border p-5 mb-5 transition-all duration-300 text-left ${className}`}
       style={{ 
         backgroundColor: theme.cardBg, 
         borderColor: theme.border,
@@ -459,11 +475,19 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
   }
 
   return (
-    <div style={{ backgroundColor: theme.background, minHeight: '100vh', color: theme.text, fontFamily: "'Poppins', sans-serif" }}>
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-4">
+    <div style={{ backgroundColor: theme.background, minHeight: '100vh', color: theme.text, fontFamily: "'Merriweather', sans-serif" }}>
+      <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-between mb-3" style={{ minHeight: '2rem' }}>
           {onBack ? (
-            <Button variant="outline" size="sm" onClick={onBack}>Back</Button>
+            <button
+              onClick={onBack}
+              aria-label="Back"
+              title="Back"
+              className="flex items-center justify-center"
+              style={{ width: '2.25rem', height: '2.25rem', padding: 0, borderRadius: '9999px', background: 'transparent', border: 'none', color: theme.text, opacity: 0.75 }}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
           ) : <span />}
           {notice && <span className="text-sm opacity-75">{notice}</span>}
         </div>
@@ -490,41 +514,40 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
 
         {!userData.restricted && <>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Two columns with room (profile + side panel), one on a phone. */}
+        <div className="grid" style={{ gap: '1.25rem', alignItems: 'start' }}>
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="min-w-0">
             {/* Hero Section */}
             <ProfileCard>
               <div className="relative">
-                {/* Cover Image */}
-                <div 
-                  className="h-48 md:h-56 rounded-xl mb-6 relative overflow-hidden flex items-center justify-center"
-                  style={{ 
-                    // Their cover photo when they have one. Longhand
-                    // properties only: mixing `background` with
-                    // `backgroundSize` made React warn on every re-render.
-                    backgroundImage: userData.coverUrl ? `url(${userData.coverUrl})` : theme.gradient,
+                {/* Cover, fading into the card */}
+                <div
+                  className="rounded-xl relative overflow-hidden"
+                  style={{
+                    height: '8.5rem',
+                    backgroundImage: userData.coverUrl
+                      ? `linear-gradient(to bottom, transparent 45%, ${theme.cardBg}), url(${userData.coverUrl})`
+                      : `linear-gradient(135deg, ${theme.secondary}40, ${theme.accent}33)`,
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    backgroundPosition: 'center',
                   }}
                 />
 
-                {/* Profile Picture */}
-                <div className="relative -mt-20 md:-mt-24 mb-6 flex justify-center lg:justify-start">
+                {/* Photo, with a live dot when they're here now */}
+                <div className="relative flex justify-center" style={{ marginTop: '-3rem' }}>
                   <div className="relative">
-                    <div 
-                      className="w-32 h-32 md:w-36 md:h-36 rounded-full border-4 flex items-center justify-center text-4xl font-bold relative overflow-hidden"
-                      style={{ 
-                        backgroundColor: theme.secondary, 
-                        borderColor: theme.cardBg,
+                    <div
+                      className="rounded-full flex items-center justify-center font-bold relative overflow-hidden"
+                      style={{
+                        width: '6rem', height: '6rem', fontSize: '2rem',
+                        backgroundColor: theme.secondary,
+                        border: `4px solid ${theme.cardBg}`,
                         color: '#FFFFFF',
-                        boxShadow: `0 8px 32px rgba(44, 171, 164, 0.3)`
+                        boxShadow: `0 8px 32px ${theme.secondary}4d`,
                       }}
                     >
                       {(userData.name || '?').trim().charAt(0).toUpperCase() || '?'}
-                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent to-white opacity-20"></div>
-                      {/* Their photo sits over the initial, and simply
-                          disappears if it fails to load. */}
                       {userData.avatarUrl && brokenAvatar !== userData.avatarUrl && (
                         <img
                           src={userData.avatarUrl}
@@ -534,394 +557,415 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                         />
                       )}
                     </div>
-                    
-                    {/* Online Status */}
                     {userData.isOnline && (
-                      <div 
-                        className="absolute bottom-2 right-2 w-5 h-5 rounded-full border-2"
-                        style={{ 
-                          backgroundColor: '#4ECDC4',
-                          borderColor: theme.cardBg
-                        }}
+                      <span
+                        aria-label="Online now"
+                        className="absolute rounded-full"
+                        style={{ right: '0.3rem', bottom: '0.3rem', width: '1.1rem', height: '1.1rem', backgroundColor: '#4ECDC4', border: `3px solid ${theme.cardBg}` }}
                       />
                     )}
                   </div>
                 </div>
 
-                {/* Profile Info */}
-                <div className="text-center lg:text-left">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-6">
-                    <div>
-                      <h1 className="text-3xl md:text-4xl font-bold mb-3">
-                        {userData.name}
-                      </h1>
-                      
-                      <p className="text-xl mb-4 opacity-90 flex items-center justify-center lg:justify-start gap-2">
-                        <Sparkles className="w-5 h-5" style={{ color: theme.accent }} />
-                        {userData.title}
-                      </p>
-                      
-                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm opacity-75 mb-6">
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.secondary}15` }}>
-                          <Calendar className="w-4 h-4" />
-                          Joined {userData.joinDate}
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.secondary}15` }}>
-                          <MapPin className="w-4 h-4" />
-                          {userData.location}
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.accent}15` }}>
-                          <Users className="w-4 h-4" />
-                          {userData.followers.toLocaleString()} followers
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.accent}15` }}>
-                          <span>👥</span>
-                          {userData.mutualConnections} mutual connections
-                        </div>
-                      </div>
-                      
-                      {/* Last Active */}
-                      <p className="text-sm opacity-60 mb-4 text-center lg:text-left">
-                        {userData.isOnline ? '🟢 Online now' : userData.lastActive}
-                      </p>
-                    </div>
-                  </div>
+                {/* Who they are */}
+                <div className="text-center mt-3">
+                  <h1 className="font-semibold leading-tight" style={{ fontSize: '1.5rem', margin: 0 }}>{userData.name}</h1>
+                  {userData.username && <p className="text-sm opacity-60 mt-0.5">@{userData.username}</p>}
+                  {userData.title && <p className="text-sm opacity-90 mt-2 px-4">{userData.title}</p>}
 
-                  {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
-                    {/* Friends already follow each other (they count in each
-                        other's followers and following), so there's
-                        nothing separate to follow or unfollow. */}
-                    {userData.relationship.state !== 'accepted' && (
-                      <Button
-                        variant="primary"
-                        onClick={handleFollowToggle}
-                        className={isFollowing ? 'bg-opacity-80' : ''}
-                      >
-                        <Users className="w-4 h-4 mr-2" />
-                        {isFollowing ? 'Following ✓' : 'Follow'}
-                      </Button>
-                    )}
-                    {userData.relationship.state === 'none' && (
-                      <Button variant="outline" onClick={handleConnect}>Connect</Button>
-                    )}
-                    {/* These two used to be labels drawn as buttons. They now
-                        do what their state suggests: withdraw the request,
-                        or (after a second tap) remove the connection. */}
-                    {userData.relationship.state === 'pending' &&
-                      userData.relationship.direction === 'outgoing' && (
-                      <Button variant="ghost" onClick={() => handleRemoveConnection('withdraw')}>
-                        Requested · Withdraw
-                      </Button>
-                    )}
-                    {userData.relationship.state === 'pending' &&
-                      userData.relationship.direction === 'incoming' && (
-                      <>
-                        <Button variant="primary" onClick={() => handleRespond('accept')}>Accept request</Button>
-                        <Button variant="ghost" onClick={() => handleRespond('decline')}>Decline</Button>
-                      </>
-                    )}
+                  {/* Where you stand with them, in words */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs">
                     {userData.relationship.state === 'accepted' && (
-                      <Button variant="ghost" onClick={() => handleRemoveConnection('remove')}>
-                        {confirmRemove ? 'Tap again to remove' : 'Connected ✓'}
-                      </Button>
+                      <span className="flex items-center gap-1 font-medium" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', backgroundColor: `${theme.secondary}22`, color: theme.secondary }}>
+                        <UserCheck className="w-3.5 h-3.5" /> Friends
+                      </span>
                     )}
-                    <Button variant="secondary" onClick={handleSendMessage}>
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      Send Message
-                    </Button>
-                    <Button variant="outline" onClick={handleShareProfile}>
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share Profile
-                    </Button>
-                    <Button variant="outline" onClick={handleBlock}>
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
+                    {userData.relationship.state === 'pending' && userData.relationship.direction === 'outgoing' && (
+                      <span className="flex items-center gap-1 font-medium" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', backgroundColor: `${theme.accent}1f`, color: theme.accent }}>
+                        <Clock className="w-3.5 h-3.5" /> Request sent
+                      </span>
+                    )}
+                    {isFollowing && userData.relationship.state !== 'accepted' && (
+                      <span className="flex items-center gap-1 font-medium" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', backgroundColor: `${theme.accent}1f`, color: theme.accent }}>
+                        <BellRing className="w-3.5 h-3.5" /> Following
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 opacity-70">
+                      {userData.isOnline
+                        ? <><span className="inline-block rounded-full" style={{ width: 7, height: 7, backgroundColor: '#4ECDC4' }} /> Online now</>
+                        : userData.lastActive}
+                    </span>
                   </div>
-                </div>
-              </div>
-            </ProfileCard>
 
-            {/* About Section */}
-            <ProfileCard>
-              <div className="flex items-center mb-6">
-                <h2 className="text-2xl font-semibold flex items-center gap-2">
-                  <Target className="w-6 h-6" style={{ color: theme.accent }} />
-                  About {userData.name.split(' ')[0]}
-                </h2>
-              </div>
-              
-              <div className="relative p-6 rounded-xl mb-6" style={{ backgroundColor: `${theme.secondary}10`, border: `1px solid ${theme.secondary}20` }}>
-                <p className="leading-relaxed text-lg">
-                  {userData.about}
-                </p>
-              </div>
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs opacity-60">
+                    {userData.location && (
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{userData.location}</span>
+                    )}
+                    {userData.joinDate && (
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Joined {userData.joinDate}</span>
+                    )}
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="flex items-center p-3 rounded-lg" style={{ backgroundColor: `${theme.accent}15`, border: `1px solid ${theme.accent}30` }}>
-                  <Target className="w-4 h-4 mr-2 flex-shrink-0" style={{ color: theme.accent }} />
-                  <div>
-                    <p className="font-medium text-xs mb-0.5">Current Focus</p>
-                    <p className="text-xs opacity-75">{userData.currentFocus}</p>
-                  </div>
+                {/* Numbers */}
+                <div
+                  className="flex mt-4 rounded-xl"
+                  style={{ backgroundColor: `${theme.secondary}10`, border: `1px solid ${theme.secondary}26` }}
+                >
+                  {[
+                    { value: userData.followers, label: userData.followers === 1 ? 'Follower' : 'Followers' },
+                    { value: userData.following, label: 'Following' },
+                    { value: userData.mutualConnections, label: 'Mutual' },
+                  ].map((item, index) => (
+                    <div
+                      key={item.label}
+                      className="text-center py-3"
+                      style={{ flex: 1, minWidth: 0, borderLeft: index ? `1px solid ${theme.secondary}26` : 'none' }}
+                    >
+                      <div className="text-lg font-semibold" style={{ color: theme.secondary }}>{item.value.toLocaleString()}</div>
+                      <div className="text-xs opacity-65">{item.label}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center p-3 rounded-lg" style={{ backgroundColor: `${theme.secondary}15`, border: `1px solid ${theme.secondary}30` }}>
-                  <TrendingUp className="w-4 h-4 mr-2 flex-shrink-0" style={{ color: theme.secondary }} />
-                  <div>
-                    <p className="font-medium text-xs mb-0.5">Growth Areas</p>
-                    <p className="text-xs opacity-75">{userData.growthAreas}</p>
-                  </div>
-                </div>
-                <div className="flex items-center p-3 rounded-lg" style={{ backgroundColor: `${theme.accent}15`, border: `1px solid ${theme.accent}30` }}>
-                  <Heart className="w-4 h-4 mr-2 flex-shrink-0" style={{ color: theme.accent }} />
-                  <div>
-                    <p className="font-medium text-xs mb-0.5">Core Values</p>
-                    <p className="text-xs opacity-75">{userData.values}</p>
-                  </div>
-                </div>
-              </div>
-            </ProfileCard>
 
-            {/* Popular Journals */}
-            <ProfileCard>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold flex items-center gap-2">
-                  <BookOpen className="w-6 h-6" style={{ color: theme.secondary }} />
-                  Popular Journals
-                </h2>
-                {userData.topJournals.length > 4 && (
-                  <Button variant="outline" size="sm" onClick={handleViewAllPosts}>
-                    {showAllPosts ? 'Show fewer' : `View all ${userData.topJournals.length} posts`}
-                  </Button>
-                )}
-              </div>
-              
-              <div className="space-y-6">
-                {userData.topJournals.slice(0, showAllPosts ? undefined : 4).map((journal) => (
-                  <div 
-                    key={journal.id}
-                    className={`relative p-6 rounded-xl border-l-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${journal.isHighlighted ? 'ring-2' : ''}`} 
-                    style={{ 
-                      borderColor: journal.isHighlighted ? theme.accent : theme.secondary,
-                      backgroundColor: journal.isHighlighted ? `${theme.accent}12` : `${theme.secondary}08`,
-                      border: `1px solid ${journal.isHighlighted ? theme.accent : theme.secondary}20`,
-                      outlineColor: journal.isHighlighted ? `${theme.accent}40` : 'transparent'
-                    }}
+                {/* They asked to connect: the one thing to answer, in words */}
+                {userData.relationship.state === 'pending' && userData.relationship.direction === 'incoming' && (
+                  <div
+                    className="flex items-center justify-between gap-3 mt-4 rounded-xl flex-wrap"
+                    style={{ padding: '0.75rem 1rem', backgroundColor: `${theme.accent}14`, border: `1px solid ${theme.accent}40` }}
                   >
-                    {journal.isHighlighted && (
-                      <div className="absolute top-3 right-3">
-                        <div 
-                          className="px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                          style={{ backgroundColor: theme.accent, color: '#FFFFFF' }}
+                    <span className="text-sm">{userData.name.split(' ')[0]} wants to connect</span>
+                    <span className="flex gap-2">
+                      <button
+                        onClick={() => handleRespond('accept')}
+                        className="text-sm font-semibold"
+                        style={{ padding: '0.35rem 0.9rem', borderRadius: '9999px', backgroundColor: theme.accent, color: theme.background, border: 'none' }}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => handleRespond('decline')}
+                        className="text-sm"
+                        style={{ padding: '0.35rem 0.9rem', borderRadius: '9999px', backgroundColor: 'transparent', color: theme.text, border: `1px solid ${theme.border}` }}
+                      >
+                        Decline
+                      </button>
+                    </span>
+                  </div>
+                )}
+
+                {/* Actions — icons; Message is the main one */}
+                <div className="flex items-center justify-center mt-5" style={{ gap: '0.9rem' }}>
+                  {(() => {
+                    const state = userData.relationship.state;
+                    const outgoing = state === 'pending' && userData.relationship.direction === 'outgoing';
+                    const actions: { label: string; icon: React.ReactNode; onClick: () => void; primary?: boolean; active?: boolean }[] = [];
+                    if (state === 'none') actions.push({ label: 'Connect', icon: <UserPlus className="w-5 h-5" />, onClick: handleConnect });
+                    if (outgoing) actions.push({ label: 'Withdraw request', icon: <UserX className="w-5 h-5" />, onClick: () => handleRemoveConnection('withdraw') });
+                    if (state !== 'accepted') actions.push({ label: isFollowing ? 'Unfollow' : 'Follow', icon: isFollowing ? <BellRing className="w-5 h-5" /> : <BellPlus className="w-5 h-5" />, onClick: handleFollowToggle, active: isFollowing });
+                    actions.splice(Math.min(1, actions.length), 0, { label: 'Send message', icon: <MessageCircle className="w-6 h-6" />, onClick: handleSendMessage, primary: true });
+                    actions.push({ label: 'Share profile', icon: <Share2 className="w-5 h-5" />, onClick: handleShareProfile });
+                    return actions.map((action) => (
+                      <button
+                        key={action.label}
+                        onClick={action.onClick}
+                        aria-label={action.label}
+                        title={action.label}
+                        className="flex items-center justify-center transition-all hover:-translate-y-0.5 active:scale-95"
+                        style={{
+                          borderRadius: '9999px',
+                          width: action.primary ? '3.5rem' : '2.75rem',
+                          height: action.primary ? '3.5rem' : '2.75rem',
+                          padding: 0,
+                          flexShrink: 0,
+                          backgroundColor: action.primary ? theme.secondary : action.active ? `${theme.accent}33` : `${theme.accent}14`,
+                          color: action.primary ? '#FFFFFF' : theme.accent,
+                          border: action.primary ? 'none' : `1px solid ${theme.accent}40`,
+                          boxShadow: action.primary ? `0 6px 20px ${theme.secondary}55` : 'none',
+                        }}
+                      >
+                        {action.icon}
+                      </button>
+                    ));
+                  })()}
+
+                  {/* More: the rarer, heavier choices */}
+                  <div className="relative" ref={moreRef}>
+                    <button
+                      onClick={() => { setMoreOpen((open) => !open); setConfirmRemove(false); }}
+                      aria-label="More options"
+                      aria-expanded={moreOpen}
+                      title="More options"
+                      className="flex items-center justify-center"
+                      style={{
+                        borderRadius: '9999px', width: '2.75rem', height: '2.75rem', padding: 0,
+                        backgroundColor: `${theme.accent}14`, color: theme.accent, border: `1px solid ${theme.accent}40`,
+                      }}
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                    {moreOpen && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 bottom-full mb-2 z-50 rounded-xl shadow-lg overflow-hidden text-sm text-left"
+                        style={{ background: theme.surface, border: `1px solid ${theme.border}`, minWidth: '12rem' }}
+                      >
+                        {userData.relationship.state === 'accepted' && (
+                          <button
+                            role="menuitem"
+                            className="w-full text-left flex items-center gap-2"
+                            style={{ padding: '0.75rem 1rem', color: '#ff6b6b', background: 'transparent', borderRadius: 0 }}
+                            onClick={() => {
+                              if (!confirmRemove) { setConfirmRemove(true); return; }
+                              setMoreOpen(false);
+                              handleRemoveConnection('remove');
+                            }}
+                          >
+                            <UserX className="w-4 h-4" />
+                            {confirmRemove ? `Tap again to remove ${userData.name.split(' ')[0]}` : 'Remove friend'}
+                          </button>
+                        )}
+                        <button
+                          role="menuitem"
+                          className="w-full text-left flex items-center gap-2"
+                          style={{ padding: '0.75rem 1rem', color: '#ff6b6b', background: 'transparent', borderRadius: 0 }}
+                          onClick={() => { setMoreOpen(false); handleBlock(); }}
                         >
-                          ⭐ Most Popular
-                        </div>
+                          <Ban className="w-4 h-4" />
+                          Block {userData.name.split(' ')[0]}
+                        </button>
                       </div>
                     )}
-                    
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <span className="text-3xl">{journal.emoji}</span>
-                        <div className="flex-1">
-                          {journal.title && <h3 className="font-semibold text-xl mb-1">{journal.title}</h3>}
-                          <span className="text-sm opacity-60">{journal.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <p className="text-base leading-relaxed mb-4 opacity-90">{journal.excerpt}</p>
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex flex-wrap gap-2">
-                        {journal.tags.map((tag) => (
-                          <span 
-                            key={tag}
-                            className="px-3 py-1 rounded-full text-sm font-medium transition-all"
-                            style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
-                          >
-                            #{tag.replace(/^#/, '')}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Interaction Stats */}
-                    <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: theme.border }}>
-                      <div className="flex items-center gap-6 text-sm">
-                        <button 
-                          className="flex items-center gap-1 transition-all hover:scale-110"
-                          onClick={() => handleReaction(journal.id)}
-                        >
-                          <Heart 
-                            className="w-4 h-4" 
-                            style={{ 
-                              color: reactions[journal.id]?.liked ? '#ff4757' : theme.accent,
-                              fill: reactions[journal.id]?.liked ? '#ff4757' : 'none'
-                            }} 
-                          />
-                          <span className="font-medium">{reactions[journal.id]?.count ?? journal.interactions.reactions}</span>
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle className="w-4 h-4 opacity-75" />
-                          <span className="font-medium">{journal.interactions.comments}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button variant="outline" size="sm" onClick={() => handleSharePost(journal.id)}>
-                          <Share2 className="w-4 h-4" />
-                        </Button>
-                        {/* Used to share the post, like the button beside it. */}
-                        <Button variant="outline" size="sm" onClick={() => onOpenPost?.(journal.id)}>
-                          <MessageCircle className="w-4 h-4 mr-1" />
-                          Comment
-                        </Button>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
+            </ProfileCard>
+
+            {/* About */}
+            {(userData.about || userData.currentFocus || userData.growthAreas || userData.values) && (
+            <ProfileCard>
+              <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
+                  <Target className="w-4 h-4" style={{ color: theme.accent }} />
+                </span>
+                About {userData.name.split(' ')[0]}
+              </h3>
+              {userData.about && (
+                <p className="leading-relaxed text-sm whitespace-pre-line" style={{ opacity: 0.9 }}>{userData.about}</p>
+              )}
+              {/* Only the ones they've filled in */}
+              <div className="flex flex-col" style={{ gap: '0.6rem', marginTop: userData.about ? '1rem' : 0 }}>
+                {[
+                  { label: 'Current Focus', value: userData.currentFocus, icon: <Target className="w-4 h-4" />, color: theme.accent },
+                  { label: 'Growth Areas', value: userData.growthAreas, icon: <TrendingUp className="w-4 h-4" />, color: theme.secondary },
+                  { label: 'Core Values', value: userData.values, icon: <Heart className="w-4 h-4" />, color: theme.accent },
+                ].filter((item) => item.value).map((item) => (
+                  <div key={item.label} className="flex items-start gap-3 rounded-lg" style={{ padding: '0.7rem 0.85rem', backgroundColor: `${item.color}12`, border: `1px solid ${item.color}2e` }}>
+                    <span className="flex mt-0.5" style={{ color: item.color }}>{item.icon}</span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-medium opacity-70">{item.label}</span>
+                      <span className="block text-sm break-words">{item.value}</span>
+                    </span>
                   </div>
                 ))}
+              </div>
+            </ProfileCard>
+            )}
+
+            {/* Their journals */}
+            <ProfileCard>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.secondary}22` }}>
+                  <BookOpen className="w-4 h-4" style={{ color: theme.secondary }} />
+                </span>
+                Popular Journals
+              </h3>
+                {userData.topJournals.length > 4 && (
+                  <button
+                    onClick={handleViewAllPosts}
+                    className="flex items-center gap-1 text-sm font-medium mb-4 flex-shrink-0"
+                    style={{ padding: '0.4rem 0.8rem', borderRadius: '9999px', backgroundColor: `${theme.accent}14`, border: `1px solid ${theme.accent}40`, color: theme.accent }}
+                  >
+                    {showAllPosts ? 'Fewer' : `All ${userData.topJournals.length}`} <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {userData.topJournals.length === 0 && (
+                <p className="text-sm opacity-60">{userData.name.split(' ')[0]} hasn't shared any entries yet.</p>
+              )}
+
+              <div className="flex flex-col" style={{ gap: '0.8rem' }}>
+                {userData.topJournals.slice(0, showAllPosts ? undefined : 4).map((journal, index) => {
+                  const edge = index === 0 ? theme.accent : theme.secondary;
+                  const liked = reactions[journal.id]?.liked;
+                  return (
+                    <div
+                      key={journal.id}
+                      className="relative rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                      style={{ padding: '0.95rem 1rem 0.8rem 1.15rem', backgroundColor: `${edge}10`, border: `1px solid ${edge}2e` }}
+                    >
+                      <span aria-hidden="true" className="absolute left-0 top-0 bottom-0" style={{ width: '4px', backgroundColor: edge }} />
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center flex-shrink-0 text-xl" style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.8rem', backgroundColor: `${edge}22` }}>
+                          {journal.emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          {journal.title && <h4 className="font-semibold text-base leading-snug break-words">{journal.title}</h4>}
+                          <p className="text-xs opacity-55 mt-0.5">{journal.date}</p>
+                        </div>
+                        {journal.isHighlighted && (
+                          <span className="text-xs font-bold flex-shrink-0" style={{ padding: '0.1rem 0.5rem', borderRadius: '9999px', backgroundColor: `${theme.accent}26`, color: theme.accent }}>
+                            ⭐ Top
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm leading-relaxed opacity-85 mt-3" style={{ display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {journal.excerpt}
+                      </p>
+                      {journal.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {journal.tags.slice(0, 4).map((tag) => (
+                            <span key={tag} className="text-xs font-medium" style={{ padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: `${theme.secondary}22`, color: theme.secondary }}>
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${theme.border}` }}>
+                        <div className="flex items-center gap-4 text-sm">
+                          <button
+                            onClick={() => handleReaction(journal.id)}
+                            aria-label={liked ? 'Unlike' : 'Like'}
+                            title={liked ? 'Unlike' : 'Like'}
+                            className="flex items-center gap-1.5 transition-all hover:scale-110"
+                            style={{ padding: 0, background: 'transparent', border: 'none', color: theme.text }}
+                          >
+                            <Heart className="w-4 h-4" style={{ color: liked ? '#ff4757' : theme.accent, fill: liked ? '#ff4757' : 'none' }} />
+                            <span className="font-medium">{reactions[journal.id]?.count ?? journal.interactions.reactions}</span>
+                          </button>
+                          <span className="flex items-center gap-1.5 opacity-80">
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="font-medium">{journal.interactions.comments}</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {[
+                            { label: 'Comment', icon: <MessageCircle className="w-4 h-4" />, onClick: () => onOpenPost?.(journal.id) },
+                            { label: 'Share', icon: <Share2 className="w-4 h-4" />, onClick: () => handleSharePost(journal.id) },
+                          ].map((item) => (
+                            <button
+                              key={item.label}
+                              onClick={item.onClick}
+                              aria-label={item.label}
+                              title={item.label}
+                              className="flex items-center justify-center transition-all hover:scale-105"
+                              style={{ width: '2.2rem', height: '2.2rem', padding: 0, borderRadius: '9999px', backgroundColor: `${theme.accent}12`, border: `1px solid ${theme.accent}40`, color: theme.accent }}
+                            >
+                              {item.icon}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </ProfileCard>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Contact Info */}
+          {/* Side panel */}
+          <div className="min-w-0">
+            {/* Numbers not already in the header strip */}
             <ProfileCard>
-              <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <User className="w-5 h-5" style={{ color: theme.accent }} />
-                Contact Info
+              <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
+                  <TrendingUp className="w-4 h-4" style={{ color: theme.accent }} />
+                </span>
+                Journey
               </h3>
-              <div className="space-y-3">
-                {userData.email && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-opacity-80 transition-all cursor-pointer" style={{ backgroundColor: `${theme.accent}08` }} onClick={() => handleContactClick('email', userData.email)}>
-                    <Mail className="w-4 h-4" style={{ color: theme.accent }} />
-                    <span className="text-sm">{userData.email}</span>
-                  </div>
-                )}
-                {userData.phone && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-opacity-80 transition-all cursor-pointer" style={{ backgroundColor: `${theme.secondary}08` }} onClick={() => handleContactClick('phone', userData.phone)}>
-                    <Phone className="w-4 h-4" style={{ color: theme.secondary }} />
-                    <span className="text-sm">{userData.phone}</span>
-                  </div>
-                )}
-                {userData.location && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg transition-all" style={{ backgroundColor: `${theme.accent}08` }}>
-                    <MapPin className="w-4 h-4" style={{ color: theme.accent }} />
-                    <span className="text-sm">{userData.location}</span>
-                  </div>
-                )}
-                {!userData.email && !userData.phone && !userData.location && (
-                  <p className="text-sm opacity-60">
-                    {userData.name.split(' ')[0]} hasn't shared contact details.
-                  </p>
-                )}
-              </div>
-            </ProfileCard>
-
-            {/* Journey Stats */}
-            <ProfileCard>
-              <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" style={{ color: theme.accent }} />
-                Journey Stats
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${theme.secondary}10` }}>
-                  <BookOpen className="w-4 h-4 mr-2" style={{ color: theme.secondary }} />
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: theme.secondary }}>{userData.stats.totalEntries}</p>
-                    <p className="text-xs opacity-75">Entries</p>
-                  </div>
-                </div>
-                <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${theme.accent}10` }}>
-                  <Users className="w-4 h-4 mr-2" style={{ color: theme.accent }} />
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: theme.accent }}>{userData.followers}</p>
-                    <p className="text-xs opacity-75">Followers</p>
-                  </div>
-                </div>
-                <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${theme.secondary}10` }}>
-                  <Heart className="w-4 h-4 mr-2" style={{ color: theme.secondary }} />
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: theme.secondary }}>{userData.stats.totalReactions.toLocaleString()}</p>
-                    <p className="text-xs opacity-75">Reactions</p>
-                  </div>
-                </div>
-                <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${theme.accent}10` }}>
-                  <Sparkles className="w-4 h-4 mr-2" style={{ color: theme.accent }} />
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: theme.accent }}>{userData.mutualConnections}</p>
-                    <p className="text-xs opacity-75">Mutual</p>
-                  </div>
-                </div>
-              </div>
-            </ProfileCard>
-
-            {/* Achievements — rendered only when there are any, so a new
-                account shows nothing rather than an empty heading. This section is
-                simply absent rather than showing three invented badges
-                the way it used to. */}
-            {userData.achievements.length > 0 && <ProfileCard>
-              <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <Award className="w-5 h-5" style={{ color: theme.accent }} />
-                Recent Achievements
-              </h3>
-              <div className="space-y-3">
-                {userData.achievements.map((achievement, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-center gap-3 p-3 rounded-lg transition-all"
-                    style={{ backgroundColor: `${index % 2 === 0 ? theme.accent : theme.secondary}10` }}
-                  >
-                    <span className="text-2xl">{achievement.icon}</span>
-                    <div>
-                      <p className="font-medium text-sm">{achievement.name}</p>
-                      <p className="text-xs opacity-60">Earned {achievement.earned}</p>
-                    </div>
+              <div className="flex" style={{ gap: '0.6rem' }}>
+                {[
+                  { icon: <BookOpen className="w-4 h-4" />, value: userData.stats.totalEntries, label: 'Entries', color: theme.secondary },
+                  { icon: <Heart className="w-4 h-4" />, value: userData.stats.totalReactions, label: 'Reactions', color: theme.accent },
+                ].map((tile) => (
+                  <div key={tile.label} className="flex-1 text-center rounded-xl" style={{ padding: '0.75rem 0.5rem', backgroundColor: `${tile.color}12`, border: `1px solid ${tile.color}2e` }}>
+                    <span className="flex justify-center" style={{ color: tile.color }}>{tile.icon}</span>
+                    <div className="text-lg font-semibold mt-1" style={{ color: tile.color }}>{tile.value.toLocaleString()}</div>
+                    <div className="text-xs opacity-65">{tile.label}</div>
                   </div>
                 ))}
               </div>
-            </ProfileCard>}
+            </ProfileCard>
 
-            {/* Favorite Topics */}
-            <ProfileCard>
-              <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <Sparkles className="w-5 h-5" style={{ color: theme.accent }} />
+            {userData.achievements.length > 0 && (
+              <ProfileCard>
+                <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
+                  <Award className="w-4 h-4" style={{ color: theme.accent }} />
+                </span>
+                Achievements
+              </h3>
+                <div className="flex flex-wrap" style={{ gap: '0.6rem' }}>
+                  {userData.achievements.map((achievement, index) => (
+                    <div
+                      key={index}
+                      title={`Earned ${achievement.earned}`}
+                      className="flex items-center gap-2 rounded-xl min-w-0"
+                      style={{ flex: '1 1 calc(50% - 0.3rem)', padding: '0.6rem 0.7rem', backgroundColor: `${theme.accent}10`, border: `1px solid ${theme.accent}26` }}
+                    >
+                      <span className="text-xl flex-shrink-0">{achievement.icon}</span>
+                      <span className="text-xs font-medium leading-tight">{achievement.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </ProfileCard>
+            )}
+
+            {userData.favoriteTopics.length > 0 && (
+              <ProfileCard>
+                <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
+                  <Sparkles className="w-4 h-4" style={{ color: theme.accent }} />
+                </span>
                 Interests
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {userData.favoriteTopics.map((topic) => (
-                  <span 
-                    key={topic}
-                    className="px-3 py-2 rounded-full text-sm font-medium transition-all hover:shadow-lg"
-                    style={{ 
-                      backgroundColor: `${theme.secondary}20`, 
-                      color: theme.secondary,
-                      border: `1px solid ${theme.secondary}30`
-                    }}
-                  >
-                    #{topic}
-                  </span>
-                ))}
-              </div>
-            </ProfileCard>
-
-            {/* Mutual Connections */}
-            <ProfileCard>
-              <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <Users className="w-5 h-5" style={{ color: theme.accent }} />
-                Connections
-              </h3>
-              <div className="text-center py-4">
-                <div 
-                  className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold"
-                  style={{ backgroundColor: `${theme.secondary}20`, color: theme.secondary }}
-                >
-                  {userData.mutualConnections}
+                <div className="flex flex-wrap gap-2">
+                  {userData.favoriteTopics.map((topic) => (
+                    <span key={topic} className="text-sm font-medium" style={{ padding: '0.3rem 0.8rem', borderRadius: '9999px', backgroundColor: `${theme.secondary}20`, color: theme.secondary, border: `1px solid ${theme.secondary}30` }}>
+                      #{topic.replace(/^#/, '')}
+                    </span>
+                  ))}
                 </div>
-                <p className="text-sm mb-3">Mutual connections</p>
-              </div>
-            </ProfileCard>
+              </ProfileCard>
+            )}
+
+            {/* Contact — only what they chose to show */}
+            {(userData.email || userData.phone) && (
+              <ProfileCard>
+                <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
+                  <User className="w-4 h-4" style={{ color: theme.accent }} />
+                </span>
+                Contact
+              </h3>
+                <div className="flex flex-col" style={{ gap: '0.5rem' }}>
+                  {userData.email && (
+                    <button onClick={() => handleContactClick('email', userData.email)} className="flex items-center gap-3 rounded-lg text-left" style={{ padding: '0.65rem 0.8rem', backgroundColor: `${theme.accent}10`, border: 'none', color: theme.text }}>
+                      <Mail className="w-4 h-4 flex-shrink-0" style={{ color: theme.accent }} />
+                      <span className="text-sm truncate">{userData.email}</span>
+                    </button>
+                  )}
+                  {userData.phone && (
+                    <button onClick={() => handleContactClick('phone', userData.phone)} className="flex items-center gap-3 rounded-lg text-left" style={{ padding: '0.65rem 0.8rem', backgroundColor: `${theme.secondary}10`, border: 'none', color: theme.text }}>
+                      <Phone className="w-4 h-4 flex-shrink-0" style={{ color: theme.secondary }} />
+                      <span className="text-sm">{userData.phone}</span>
+                    </button>
+                  )}
+                </div>
+              </ProfileCard>
+            )}
           </div>
         </div>
         </>}

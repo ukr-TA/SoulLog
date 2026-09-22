@@ -250,10 +250,14 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile, i
   // React would rebuild everything in it — losing focus and local state.
   const renderCompactUserCard = ({ user, type }: UserCardProps) => (
     <div
-      className="p-3 rounded-lg border transition-all duration-300 hover:shadow-md hover:scale-[1.02] cursor-pointer text-left min-w-0"
+      // No hover "grow": scaling a card made it cover a neighbour's open
+      // ⋯ menu. The card whose menu is open sits above everything else.
+      className="p-3 rounded-lg border transition-all duration-300 hover:shadow-md cursor-pointer text-left min-w-0"
       style={{
+        position: 'relative',
+        zIndex: friendMenu === user.id ? 40 : undefined,
         backgroundColor: theme.surface,
-        borderColor: theme.border,
+        borderColor: friendMenu === user.id ? theme.accent : theme.border,
         boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.1)'
       }}
       onClick={() => onViewProfile?.(user.username)}
@@ -360,7 +364,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile, i
               {friendMenu === user.id && (
                 <div
                   role="menu"
-                  className="absolute right-0 bottom-full mb-2 z-30 rounded-xl shadow-lg overflow-hidden text-sm text-left"
+                  className="absolute right-0 top-full mt-2 z-50 rounded-xl shadow-lg overflow-hidden text-sm text-left"
                   style={{ background: theme.surface, border: `1px solid ${theme.border}`, minWidth: '190px' }}
                 >
                   <button

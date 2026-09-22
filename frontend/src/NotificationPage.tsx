@@ -53,6 +53,14 @@ type Counts = Record<string, number>;
 
 const PAGE_SIZE = 30;
 
+/** "7 minutes ago" → "7m": the time column stays narrow. */
+const shortAge = (text: string) => {
+  const match = text.match(/^(\d+) (minute|hour|day|week)s? ago$/);
+  if (match) return `${match[1]}${match[2][0]}`;
+  if (text === 'just now') return 'now';
+  return text;
+};
+
 /**
  * The hover handlers below style `event.target` — whatever the pointer is
  * actually over — rather than the element the handler sits on, which is
@@ -202,7 +210,7 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
     }
   };
 
-  const dismiss = async (id: number, event: ReactMouseEvent<SVGElement>) => {
+  const dismiss = async (id: number, event: ReactMouseEvent<Element>) => {
     event.stopPropagation();
     setNotifications((current) => current.filter((row) => row.id !== id));
     try {
@@ -368,7 +376,7 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
               key={notification.id}
               onClick={() => markAsRead(notification.id)}
               style={{
-                padding: isMobile ? '1rem' : '1.2rem',
+                padding: '0.75rem 1rem 0.75rem 1.1rem',
                 borderBottom: index < getFilteredNotifications().length - 1 ? `1px solid ${theme.border}` : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
@@ -402,192 +410,135 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
 
               <div style={{
                 display: 'flex',
-                gap: isMobile ? '0.75rem' : '1rem',
+                gap: '0.75rem',
                 alignItems: 'flex-start',
                 // Read ones step back a little — still easy to read.
                 opacity: isFresh(notification) ? 1 : 0.65,
                 transition: 'opacity 0.3s ease'
               }}>
-                {/* User Avatar */}
-                <div style={{
-                  position: 'relative',
-                  flexShrink: 0
-                }}>
+                {/* Who (or which badge), with a tiny mark for the kind */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                   <div style={{
-                    width: isMobile ? '2.5rem' : '3rem',
-                    height: isMobile ? '2.5rem' : '3rem',
+                    width: '2.4rem',
+                    height: '2.4rem',
                     borderRadius: '50%',
-                    background: notification.userAvatar.match(/[A-Z]/) ? theme.accent : 'transparent',
+                    background: /[A-Z]/.test(notification.userAvatar) ? theme.accent : `${theme.accent}1f`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: notification.userAvatar.match(/[A-Z]/) ? theme.background : 'inherit',
-                    fontWeight: '600',
-                    fontSize: notification.userAvatar.match(/[A-Z]/) ? (isMobile ? '1rem' : '1.2rem') : (isMobile ? '1.2rem' : '1.5rem')
+                    color: theme.background,
+                    fontWeight: 600,
+                    fontSize: /[A-Z]/.test(notification.userAvatar) ? '0.95rem' : '1.2rem',
                   }}>
                     {notification.userAvatar}
                   </div>
-                  
-                  {/* Notification type icon */}
                   <div style={{
                     position: 'absolute',
-                    bottom: '-2px',
-                    right: '-2px',
-                    width: isMobile ? '1rem' : '1.2rem',
-                    height: isMobile ? '1rem' : '1.2rem',
+                    bottom: '-3px',
+                    right: '-3px',
+                    width: '1.05rem',
+                    height: '1.05rem',
                     background: theme.surface,
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    border: `2px solid ${theme.surface}`,
-                    fontSize: isMobile ? '0.6rem' : '0.7rem'
+                    fontSize: '0.6rem',
                   }}>
                     {getNotificationIcon(notification.type)}
                   </div>
                 </div>
 
-                {/* Content */}
-                <div style={{
-                  flex: 1,
-                  minWidth: 0
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: '1rem',
-                    marginBottom: '0.3rem'
-                  }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* One line that says it all */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                     <div style={{
-                      fontSize: '0.95rem',
-                      lineHeight: 1.4,
-                      color: theme.text
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: '0.88rem',
+                      lineHeight: 1.35,
+                      color: theme.text,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
                     }}>
-                      <span style={{ fontWeight: '600' }}>{notification.user}</span>
-                      {' '}
-                      <span style={{ fontWeight: '400' }}>{notification.action}</span>
-                      {notification.target && (
+                      <span style={{ fontWeight: 600 }}>{notification.badge ? '' : notification.user}</span>
+                      {notification.badge ? (
+                        <>You earned <span style={{ fontWeight: 600, color: theme.accent }}>{notification.badge.name}</span></>
+                      ) : (
                         <>
-                          {' '}
-                          <span style={{ 
-                            fontWeight: '600',
-                            color: theme.accent 
-                          }}>
-                            {notification.target}
-                          </span>
+                          {' '}{notification.action}
+                          {notification.target && (
+                            <> <span style={{ fontWeight: 600, color: theme.accent }}>{notification.target}</span></>
+                          )}
                         </>
                       )}
                     </div>
-                    
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      color: theme.text + '60',
-                      fontSize: '0.8rem',
-                      flexShrink: 0
-                    }}>
-                      <span style={{ fontSize: '10px' }}>🕐</span>
-                      {notification.time}
-                      <X
-                        className='w-3.5 h-3.5 cursor-pointer'
-                        onClick={(event) => dismiss(notification.id, event)}
-                      />
-                    </div>
+                    <span style={{ fontSize: '0.72rem', color: theme.text + '70', flexShrink: 0, marginTop: '0.1rem' }}>
+                      {shortAge(notification.time)}
+                    </span>
+                    <button
+                      onClick={(event) => dismiss(notification.id, event)}
+                      aria-label="Dismiss"
+                      title="Dismiss"
+                      style={{ background: 'transparent', border: 'none', padding: '0.1rem', color: theme.text + '70', cursor: 'pointer', flexShrink: 0, lineHeight: 0 }}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  {/* Comment content if applicable */}
+                  {/* The detail, quietly: one line, no box */}
                   {notification.content && (
                     <div style={{
-                      background: theme.background,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: '0.8rem',
-                      padding: '0.8rem',
-                      fontSize: '0.9rem',
-                      color: theme.text + '90',
-                      fontStyle: 'italic',
-                      marginTop: '0.5rem'
+                      fontSize: '0.8rem',
+                      color: theme.text + '99',
+                      marginTop: '0.15rem',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}>
                       {notification.content}
                     </div>
                   )}
 
-                  {/* A badge you just earned: the badge, and a way to see them all. */}
-                  {notification.badge && (
-                    <div style={{
-                      marginTop: '0.6rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      flexWrap: 'wrap',
-                    }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        padding: '0.35rem 0.8rem 0.35rem 0.45rem',
-                        borderRadius: '999px',
-                        background: `linear-gradient(135deg, ${theme.accent}33, ${theme.secondary}26)`,
-                        border: `1px solid ${theme.accent}66`,
-                        color: theme.text,
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                      }}>
-                        <span style={{
-                          width: '1.6rem', height: '1.6rem', borderRadius: '50%',
-                          background: theme.background, display: 'inline-flex',
-                          alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem',
-                        }}>{notification.badge.icon}</span>
-                        {notification.badge.name}
-                      </span>
-                      {onOpenAchievements && (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            markAsRead(notification.id);
-                            onOpenAchievements();
-                          }}
-                          style={{
-                            padding: '0.4rem 1.1rem',
-                            borderRadius: '0.6rem',
-                            border: `1px solid ${theme.accent}`,
-                            background: 'transparent',
-                            color: theme.accent,
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          View achievements
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Friend requests: a way straight to where you answer them. */}
-                  {(notification.type === 'connection_request' || notification.type === 'connection_accepted') && onOpenSouls && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        markAsRead(notification.id);
-                        onOpenSouls(notification.type === 'connection_request' ? 'requests' : 'friends');
-                      }}
-                      style={{
-                        marginTop: '0.6rem',
-                        padding: '0.4rem 1.1rem',
-                        borderRadius: '0.6rem',
-                        border: `1px solid ${theme.accent}`,
-                        background: notification.type === 'connection_request' ? theme.accent : 'transparent',
-                        color: notification.type === 'connection_request' ? theme.background : theme.accent,
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {notification.type === 'connection_request' ? 'View request' : 'View friends'}
-                    </button>
-                  )}
+                  {/* One small action, when there's somewhere to go */}
+                  {(() => {
+                    let label: string | null = null;
+                    let strong = false;
+                    let go: (() => void) | null = null;
+                    if (notification.badge && onOpenAchievements) {
+                      label = 'View achievements'; go = onOpenAchievements;
+                    } else if (notification.type === 'connection_request' && onOpenSouls) {
+                      label = 'View request'; strong = true; go = () => onOpenSouls('requests');
+                    } else if (notification.type === 'connection_accepted' && onOpenSouls) {
+                      label = 'View friends'; go = () => onOpenSouls('friends');
+                    }
+                    if (!label || !go) return null;
+                    const open = go;
+                    return (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markAsRead(notification.id);
+                          open();
+                        }}
+                        style={{
+                          marginTop: '0.45rem',
+                          padding: '0.28rem 0.8rem',
+                          borderRadius: '999px',
+                          border: `1px solid ${theme.accent}${strong ? '' : '80'}`,
+                          background: strong ? theme.accent : `${theme.accent}12`,
+                          color: strong ? theme.background : theme.accent,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

@@ -68,16 +68,38 @@ def _action_text(notification):
     return base
 
 
+def _badge_for(notification):
+    """
+    The badge behind an "You've earned …" notification, so the row can
+    show the badge itself (its icon, name and what it was for) rather
+    than a generic party popper.
+    """
+    key = notification.dedupe_key or ""
+    if notification.kind != NotificationKind.MILESTONE or not key.startswith("badge:"):
+        return None
+    from achievements.models import Badge
+
+    badge = Badge.objects.filter(slug=key.split(":", 1)[1]).first()
+    if badge is None:
+        return None
+    return {"slug": badge.slug, "name": badge.name, "icon": badge.icon or "🏅", "description": badge.description}
+
+
 def serialize_notification(notification, request=None):
     name, avatar, actor_id = _actor_fields(notification)
+    badge = _badge_for(notification)
+    if badge:
+        avatar = badge["icon"]
     return {
+        "badge": badge,
         "id": notification.id,
         "type": notification.kind,
         "user": name,
         "userAvatar": avatar,
         "actorId": actor_id,
         "action": _action_text(notification),
-        "target": notification.target_label,
+        # A badge row already names the badge in its title and chip.
+        "target": "" if badge else notification.target_label,
         "content": notification.body,
         "time": humanize_age(notification.created_at),
         "createdAt": notification.created_at.isoformat(),

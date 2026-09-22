@@ -144,6 +144,14 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     setActiveTab(ACTIVE_TAB.COMMUNITY);
   };
 
+  // "View achievements" on a badge notification: Insights, sheet open.
+  const [achievementsRequested, setAchievementsRequested] = useState(false);
+  const openAchievements = () => {
+    setAchievementsRequested(true);
+    openTab(ACTIVE_TAB.INSIGHTS);
+  };
+  const clearAchievementsRequest = useCallback(() => setAchievementsRequested(false), []);
+
   // One Sanctuary post to show at the top of the feed with its comments
   // open — from a shared link, or "Comment" on someone's profile.
   const [focusPost, setFocusPost] = useState<number | null>(null);
@@ -881,9 +889,9 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 onOpenPost={openPost}
               />
             )
-          : activeTab === ACTIVE_TAB.INSIGHTS ? <InsightsPage theme={theme} darkMode={darkMode} onWriteWithPrompt={writeWithPrompt} />
+          : activeTab === ACTIVE_TAB.INSIGHTS ? <InsightsPage theme={theme} darkMode={darkMode} onWriteWithPrompt={writeWithPrompt} isMobile={isMobile} setActiveTab={openTab} openAchievements={achievementsRequested} onAchievementsOpened={clearAchievementsRequest} />
           : activeTab === ACTIVE_TAB.JOURNAL ? <JournalHistoryPage theme={theme} darkMode={darkMode} setBackPage={setBackPage} setActiveTab={setActiveTab} focus={journalFocus} onFocusHandled={() => setJournalFocus(null)} />
-          : activeTab === ACTIVE_TAB.PROFILE ? <SoulLogOwnProfile theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onEditProfile={editProfile} onFindConnections={findConnections} onOpenJournalEntry={openJournalEntry} />
+          : activeTab === ACTIVE_TAB.PROFILE ? <SoulLogOwnProfile theme={theme} darkMode={darkMode} isMobile={isMobile} onOpenInsights={() => openTab(ACTIVE_TAB.INSIGHTS)} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onEditProfile={editProfile} onFindConnections={findConnections} onOpenJournalEntry={openJournalEntry} />
           : activeTab === ACTIVE_TAB.MESSAGES ? (
               <MessagesPage
                 theme={theme}
@@ -895,7 +903,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               />
             )
           : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={`${settingsSection}-${settingsVisit}`} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
-          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onOpenSouls={openSouls} onSeen={refreshBadges}/>
+          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onOpenSouls={openSouls} onOpenAchievements={openAchievements} onSeen={refreshBadges}/>
           /* CreateJournal takes no `backPage`: it navigates back to Journal
              itself, so the prop it was being handed was never read. */
           : activeTab === ACTIVE_TAB.LOG ? <CreateJournal key={pendingPrompt ?? 'blank'} theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile={isMobile} initialPrompt={pendingPrompt}/>

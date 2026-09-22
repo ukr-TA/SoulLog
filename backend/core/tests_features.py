@@ -361,3 +361,23 @@ class FriendsCountAsFollowsTests(APITestCase):
         Connection.objects.all().delete()
         stats = self.stats(self.a_token)
         self.assertEqual((stats["followers"], stats["following"]), (0, 0))
+
+
+class BadgeNotificationTests(APITestCase):
+    """Earning a badge notifies you, and the notification carries the badge."""
+
+    def test_first_entry_badge_shows_in_notifications(self):
+        from achievements.models import Badge
+
+        token = register_and_login(self.client, "badge_getter")
+        first = Badge.objects.filter(metric=Badge.ENTRIES, is_active=True).order_by("threshold").first()
+        self.assertIsNotNone(first)
+        for i in range(first.threshold):
+            self.client.post("/api/v1/journal/", {"title": f"Day {i}", "content": "Some words."},
+                             format="json", **auth_header(token))
+
+        rows = self.client.get("/api/v1/notifications/", **auth_header(token)).data["notifications"]
+        earned = [row for row in rows if row.get("badge")]
+        self.assertTrue(earned)
+        self.assertEqual(earned[0]["badge"]["slug"], first.slug)
+        self.assertEqual(earned[0]["userAvatar"], first.icon or "🏅")

@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, get } from './api';
+import AchievementsSheet, { type BadgeProgress, type EarnedBadge } from './Achievements';
 import type { Theme } from './theme';
 
 /** One row of `GET /insights/`, as the engine returns it. */
@@ -41,6 +42,11 @@ interface InsightsPageProps {
   darkMode?: boolean;
   /** Open the journal composer with this prompt added. */
   onWriteWithPrompt?: (prompt: string) => void;
+  isMobile?: boolean;
+  /** Open with the Achievements sheet showing (from a badge notification). */
+  openAchievements?: boolean;
+  onAchievementsOpened?: () => void;
+  setActiveTab?: (tab: string) => void;
 }
 
 type MoodBar = { emoji: string; label: string; value: number; height: number };
@@ -51,7 +57,9 @@ const RANGES: Record<string, number> = {
   '3 Months': 90,
 };
 
-const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
+const InsightsPage = ({
+  theme, onWriteWithPrompt, isMobile = false, openAchievements = false, onAchievementsOpened, setActiveTab,
+}: InsightsPageProps) => {
   const [activeFilter, setActiveFilter] = useState('30 Days');
   const [progressValue, setProgressValue] = useState(0);
 
@@ -68,6 +76,50 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
   // every use site.
   const [insights, setInsights] = useState<InsightCard[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(true);
+
+  // Journey stats and badges (shown here on phones, where Profile no
+  // longer carries them).
+  const [journey, setJourney] = useState<{
+    entries: number; streak: number; reactions: number; views: number | null;
+  } | null>(null);
+  const [earned, setEarned] = useState<EarnedBadge[]>([]);
+  const [badgeProgress, setBadgeProgress] = useState<BadgeProgress[]>([]);
+  const [showAchievements, setShowAchievements] = useState(openAchievements);
+  // On a phone the first two insights show; the rest are one tap away.
+  const [allInsights, setAllInsights] = useState(false);
+
+  useEffect(() => {
+    if (openAchievements) {
+      setShowAchievements(true);
+      onAchievementsOpened?.();
+    }
+  }, [openAchievements, onAchievementsOpened]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [profile, stats] = await Promise.all([
+          get<{
+            stats?: { reactionsReceived?: number; profileViews?: number };
+            showProfileViews?: boolean;
+            achievements?: EarnedBadge[];
+            achievementProgress?: BadgeProgress[];
+          }>('/profile/'),
+          get<{ total_entries?: number; current_streak_days?: number }>('/journal/stats/'),
+        ]);
+        setJourney({
+          entries: stats.total_entries || 0,
+          streak: stats.current_streak_days || 0,
+          reactions: profile.stats?.reactionsReceived || 0,
+          views: profile.showProfileViews ? profile.stats?.profileViews || 0 : null,
+        });
+        setEarned(profile.achievements || []);
+        setBadgeProgress(profile.achievementProgress || []);
+      } catch {
+        // The tiles just don't show; the rest of Insights is unaffected.
+      }
+    })();
+  }, []);
 
   const loadInsights = useCallback(async () => {
     try {
@@ -186,25 +238,18 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
     );
   };
 
-  return (
-    <div style={{
-      fontFamily: "'Merriweather','Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      background: theme.background,
-      color: theme.text,
-      minHeight: '100vh',
-      padding: '20px',
-      textAlign: 'left',
-    }}>
-      <div style={{ margin: '0 auto' }}>
+  const m = isMobile;
+
+  const filtersEl = <>
         {/* Lower Header */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: '20px',
+          marginBottom: m ? '12px' : '20px',
           padding: '0'
         }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: m ? '6px' : '10px' }}>
             {Object.keys(RANGES).map((filter) => (
               <button
                 key={filter}
@@ -215,9 +260,9 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
                     : theme.surface,
                   border: `1px solid ${theme.border}`,
                   color: activeFilter === filter ? theme.background : theme.text,
-                  padding: '10px 20px',
+                  padding: m ? '7px 14px' : '10px 20px',
                   borderRadius: '20px',
-                  fontSize: '14px',
+                  fontSize: m ? '13px' : '14px',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   fontWeight: activeFilter === filter ? '600' : 'normal'
@@ -241,22 +286,26 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
           </div>
         </div>
 
+      </>;
+  const headerEl = <>
         {/* Insights Header */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '28px', marginBottom: '8px', color: theme.accent }}>
+        <div style={{ textAlign: 'center', marginBottom: m ? '14px' : '40px' }}>
+          <div style={{ fontSize: m ? '22px' : '28px', marginBottom: m ? '2px' : '8px', color: theme.accent }}>
             Your Insights
           </div>
-          <div style={{ fontSize: '16px', color: theme.mutedText }}>
+          <div style={{ fontSize: m ? '13px' : '16px', color: theme.mutedText }}>
             Discover patterns in your thoughts and emotions
           </div>
         </div>
 
+      </>;
+  const chartsEl = <>
         {/* Charts Section */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '2fr 1fr',
-          gap: '20px',
-          marginBottom: '40px'
+          gridTemplateColumns: m ? 'minmax(0, 1fr)' : '2fr 1fr',
+          gap: m ? '12px' : '20px',
+          marginBottom: m ? '16px' : '40px'
         }}>
           {/* Mood Distribution Chart */}
           <div style={{
@@ -266,8 +315,8 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
             backdropFilter: 'blur(10px)',
             border: `1px solid ${theme.border}`
           }}>
-            <div style={{ fontSize: '16px', marginBottom: '15px', color: theme.text, fontWeight: '500' }}>
-              Mood Distribution (30 Days)
+            <div style={{ fontSize: m ? '15px' : '16px', marginBottom: '15px', color: theme.text, fontWeight: '500' }}>
+              Mood Distribution ({activeFilter})
             </div>
             <div style={{
               height: '140px',
@@ -346,31 +395,38 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
             backdropFilter: 'blur(10px)',
             border: `1px solid ${theme.border}`,
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: m ? 'row' : 'column',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: m ? 'flex-start' : 'center',
+            gap: m ? '16px' : 0,
+            ...(m ? { padding: '14px 16px', order: -1 } : {}),
           }}>
-            <div style={{ fontSize: '16px', marginBottom: '15px', color: theme.text, fontWeight: '500', textAlign: 'center' }}>
-              Weekly Goal Progress
-            </div>
-            {renderProgressRing({ value: progressValue })}
-            <div style={{ fontSize: '11px', marginTop: '10px', color: theme.text, opacity: 0.6, textAlign: 'center' }}>
-              Days active in the last 7
+            {m && <div style={{ flexShrink: 0 }}>{renderProgressRing({ value: progressValue })}</div>}
+            <div style={{ textAlign: m ? 'left' : 'center' }}>
+              <div style={{ fontSize: m ? '15px' : '16px', marginBottom: m ? '4px' : '15px', color: theme.text, fontWeight: '500' }}>
+                Weekly Goal Progress
+              </div>
+              {!m && renderProgressRing({ value: progressValue })}
+              <div style={{ fontSize: '11px', marginTop: m ? 0 : '10px', color: theme.text, opacity: 0.6 }}>
+                Days active in the last 7
+              </div>
             </div>
           </div>
         </div>
 
+      </>;
+  const patternsEl = <>
         {/* Patterns Section */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '1fr 1fr',
-          gap: '30px',
-          marginBottom: '40px'
+          gridTemplateColumns: m ? 'minmax(0, 1fr)' : '1fr 1fr',
+          gap: m ? '12px' : '30px',
+          marginBottom: m ? '16px' : '40px'
         }}>
           <div style={{
             background: theme.surface,
-            borderRadius: '20px',
-            padding: '25px',
+            borderRadius: m ? '16px' : '20px',
+            padding: m ? '16px' : '25px',
             backdropFilter: 'blur(10px)',
             border: `1px solid ${theme.border}`
           }}>
@@ -408,8 +464,8 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
 
           <div style={{
             background: theme.surface,
-            borderRadius: '20px',
-            padding: '25px',
+            borderRadius: m ? '16px' : '20px',
+            padding: m ? '16px' : '25px',
             backdropFilter: 'blur(10px)',
             border: `1px solid ${theme.border}`
           }}>
@@ -446,18 +502,20 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
           </div>
         </div>
 
+      </>;
+  const aiEl = <>
         {/* AI Insights */}
         <div style={{
           background: theme.surface,
-          borderRadius: '20px',
-          padding: '30px',
+          borderRadius: m ? '16px' : '20px',
+          padding: m ? '16px' : '30px',
           backdropFilter: 'blur(10px)',
           border: `1px solid ${theme.border}`,
-          marginBottom: '30px'
+          marginBottom: m ? '16px' : '30px'
         }}>
           <div style={{
-            fontSize: '20px',
-            marginBottom: '25px',
+            fontSize: m ? '17px' : '20px',
+            marginBottom: m ? '12px' : '25px',
             color: theme.accent,
             display: 'flex',
             alignItems: 'center',
@@ -474,14 +532,14 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
             <div style={{ textAlign: 'center', color: theme.mutedText, padding: '20px', fontSize: '14px' }}>
               Not enough entries yet to surface a pattern. Keep journaling and checking in — insights will appear here once there's enough to observe.
             </div>
-          ) : insights.map((insight: InsightCard, index: number) => (
+          ) : (m && !allInsights ? insights.slice(0, 2) : insights).map((insight: InsightCard, index: number, shown: InsightCard[]) => (
             <div
               key={index}
               style={{
                 background: theme.cardBg,
                 borderRadius: '15px',
-                padding: '20px',
-                marginBottom: index < insights.length - 1 ? '15px' : '0',
+                padding: m ? '14px' : '20px',
+                marginBottom: index < shown.length - 1 ? (m ? '10px' : '15px') : '0',
                 border: `1px solid ${theme.border}`
               }}
             >
@@ -496,7 +554,7 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
                 {insight.category}
               </div>
               <div style={{
-                fontSize: '16px',
+                fontSize: m ? '15px' : '16px',
                 color: theme.text,
                 lineHeight: '1.5',
                 marginBottom: '8px'
@@ -520,8 +578,115 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
               </div>
             </div>
           ))}
+          {m && !isLoadingInsights && insights.length > 2 && (
+            <button
+              onClick={() => setAllInsights((v) => !v)}
+              style={{
+                width: '100%', marginTop: '10px', padding: '10px', borderRadius: '12px',
+                background: 'transparent', border: `1px solid ${theme.border}`,
+                color: theme.accent, fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              {allInsights ? 'Show fewer' : `Show ${insights.length - 2} more`}
+            </button>
+          )}
         </div>
+      </>;
+
+  /*
+   * Phone: what you came for first, in the least room.
+   *   1. Your journey — four small numbers and the Achievements button
+   *   2. Insights from your entries — the reason this page exists
+   *   3. The period chips, right above the charts they change
+   *   4. Mood + weekly goal, then time patterns and themes
+   */
+  const tile = (icon: string, value: string | number, label: string, onClick?: () => void) => (
+    <button
+      onClick={onClick}
+      style={{
+        background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px',
+        padding: '10px 6px', color: theme.text, textAlign: 'center', cursor: onClick ? 'pointer' : 'default',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minWidth: 0,
+      }}
+    >
+      <span style={{ fontSize: '15px' }}>{icon}</span>
+      <span style={{ fontSize: '17px', fontWeight: 700, color: theme.accent }}>{value}</span>
+      <span style={{ fontSize: '10px', opacity: 0.7, lineHeight: 1.2 }}>{label}</span>
+    </button>
+  );
+
+  const journeyEl = (
+    <div style={{
+      background: theme.surface, borderRadius: '16px', padding: '14px',
+      border: `1px solid ${theme.border}`, marginBottom: '16px',
+    }}>
+      <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '10px' }}>📈 My Journey</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px' }}>
+        {tile('📖', journey?.entries ?? '–', 'Entries', () => setActiveTab?.('Journal'))}
+        {tile('🔥', journey?.streak ?? '–', 'Day streak', () => setActiveTab?.('Journal'))}
+        {tile('💛', journey?.reactions ?? '–', 'Reactions', () => setActiveTab?.('Community'))}
+        {tile('👁️', journey ? (journey.views ?? 'Off') : '–', 'Profile views', () => setActiveTab?.('Settings'))}
       </div>
+      <button
+        onClick={() => setShowAchievements(true)}
+        style={{
+          width: '100%', marginTop: '10px', padding: '12px 14px', borderRadius: '12px',
+          background: `linear-gradient(135deg, ${theme.accent}26, ${theme.secondary}1f)`,
+          border: `1px solid ${theme.accent}55`, color: theme.text, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: '22px' }}>🏅</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontWeight: 600, fontSize: '14px' }}>Achievements</span>
+          <span style={{ display: 'block', fontSize: '11px', opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {earned.length > 0
+              ? `${earned.length} earned · ${earned.slice(0, 5).map((b) => b.icon).join(' ')}`
+              : badgeProgress.length > 0 ? `Next: ${badgeProgress[0].icon} ${badgeProgress[0].name}` : 'Your badges live here'}
+          </span>
+        </span>
+        <span style={{ color: theme.accent, fontSize: '18px' }}>›</span>
+      </button>
+    </div>
+  );
+
+  return (
+    <div style={{
+      fontFamily: "'Merriweather','Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      background: theme.background,
+      color: theme.text,
+      minHeight: '100vh',
+      padding: m ? '14px 14px 90px' : '20px',
+      textAlign: 'left',
+    }}>
+      <div style={{ margin: '0 auto' }}>
+        {m ? (
+          <>
+            {headerEl}
+            {journeyEl}
+            {aiEl}
+            {filtersEl}
+            {chartsEl}
+            {patternsEl}
+          </>
+        ) : (
+          <>
+            {filtersEl}
+            {headerEl}
+            {chartsEl}
+            {patternsEl}
+            {aiEl}
+          </>
+        )}
+      </div>
+      {showAchievements && (
+        <AchievementsSheet
+          theme={theme}
+          earned={earned}
+          progress={badgeProgress}
+          onClose={() => setShowAchievements(false)}
+        />
+      )}
     </div>
   );
 };

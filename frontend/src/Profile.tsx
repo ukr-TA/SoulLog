@@ -55,6 +55,9 @@ interface ProfilePageProps {
   onOpenJournalEntry?: (entryId: number, action: 'edit' | 'share') => void;
   /** Open Community on the Souls (people) tab. */
   onFindConnections?: () => void;
+  /** Phone layout: stats, badges and interests are left out (they're in Insights). */
+  isMobile?: boolean;
+  onOpenInsights?: () => void;
 }
 
 /** One card in "My Top Journals", built from the user's own entries. */
@@ -226,6 +229,8 @@ const SoulLogOwnProfile = ({
   onEditProfile,
   onOpenJournalEntry,
   onFindConnections,
+  isMobile = false,
+  onOpenInsights,
 }: ProfilePageProps) => {
   const [showJournalModal, setShowJournalModal] = useState(false);
   // The quick-entry form. `mood` and `visibility` used to be a decorative
@@ -771,6 +776,32 @@ const SoulLogOwnProfile = ({
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* On a phone, Journey Stats and Achievements live in Insights
+                and My Interests is left out, to keep Profile short. */}
+            {isMobile ? (
+              <button
+                onClick={onOpenInsights}
+                className="w-full flex items-center gap-3 rounded-xl text-left"
+                style={{
+                  padding: '0.9rem 1rem',
+                  background: `linear-gradient(135deg, ${theme.accent}22, ${theme.secondary}1a)`,
+                  border: `1px solid ${theme.accent}44`,
+                  color: theme.text,
+                }}
+              >
+                <span className="text-2xl">🏅</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold text-sm">Stats & achievements</span>
+                  <span className="block text-xs opacity-70 truncate">
+                    {userData.recentAchievements.length > 0
+                      ? `${userData.recentAchievements.length} earned · see them in Insights`
+                      : 'Your journey stats and badges are in Insights'}
+                  </span>
+                </span>
+                <span style={{ color: theme.accent }}>›</span>
+              </button>
+            ) : (
+              <>
             {/* Journey Stats */}
             <ProfileCard theme={theme}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
@@ -896,6 +927,10 @@ const SoulLogOwnProfile = ({
               </div>
             </ProfileCard>
 
+              </>
+            )}
+
+            {!isMobile && (<>
             {/* Favorite Topics */}
             <ProfileCard theme={theme}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
@@ -946,6 +981,7 @@ const SoulLogOwnProfile = ({
                 </Button>
               )}
             </ProfileCard>
+            </>)}
           </div>
         </div>
       </div>

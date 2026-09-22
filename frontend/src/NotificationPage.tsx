@@ -28,6 +28,8 @@ interface MessagePageProps {
   setActiveTab: (tab: string) => void;
   /** Open Community → Souls on Requests or Friends ("View" on a friend-request row). */
   onOpenSouls?: (tab: 'requests' | 'friends') => void;
+  /** Open your achievements (from a "You've earned …" notification). */
+  onOpenAchievements?: () => void;
   /** Called once new notifications have been marked as seen. */
   onSeen?: () => void;
 }
@@ -43,6 +45,8 @@ type Notification = {
   time: string;
   isRead: boolean;
   category: string;
+  /** Set on "You've earned …" rows: the badge itself. */
+  badge?: { slug: string; name: string; icon: string; description: string } | null;
 };
 
 type Counts = Record<string, number>;
@@ -62,7 +66,7 @@ const setTargetBackground = (target: EventTarget, background: string) => {
   }
 };
 
-const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSouls, onSeen }: MessagePageProps) => {
+const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSouls, onOpenAchievements, onSeen }: MessagePageProps) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [counts, setCounts] = useState<Counts>({});
@@ -506,6 +510,58 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                       marginTop: '0.5rem'
                     }}>
                       {notification.content}
+                    </div>
+                  )}
+
+                  {/* A badge you just earned: the badge, and a way to see them all. */}
+                  {notification.badge && (
+                    <div style={{
+                      marginTop: '0.6rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      flexWrap: 'wrap',
+                    }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.35rem 0.8rem 0.35rem 0.45rem',
+                        borderRadius: '999px',
+                        background: `linear-gradient(135deg, ${theme.accent}33, ${theme.secondary}26)`,
+                        border: `1px solid ${theme.accent}66`,
+                        color: theme.text,
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                      }}>
+                        <span style={{
+                          width: '1.6rem', height: '1.6rem', borderRadius: '50%',
+                          background: theme.background, display: 'inline-flex',
+                          alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem',
+                        }}>{notification.badge.icon}</span>
+                        {notification.badge.name}
+                      </span>
+                      {onOpenAchievements && (
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            markAsRead(notification.id);
+                            onOpenAchievements();
+                          }}
+                          style={{
+                            padding: '0.4rem 1.1rem',
+                            borderRadius: '0.6rem',
+                            border: `1px solid ${theme.accent}`,
+                            background: 'transparent',
+                            color: theme.accent,
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          View achievements
+                        </button>
+                      )}
                     </div>
                   )}
 

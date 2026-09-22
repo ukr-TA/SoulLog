@@ -192,6 +192,37 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     };
   }, [refreshBadges]);
 
+  // The Back button / swipe-back gesture.
+  //
+  // Screens here are switched in React state, not by URL, so the browser
+  // had nothing to go back to and Back left the app entirely. Now any
+  // screen other than the Dashboard owns exactly one history entry: Back
+  // from anywhere returns to the Dashboard, and Back from the Dashboard
+  // leaves as before. On Android the same applies to the hardware back
+  // button, which Capacitor maps onto this history.
+  useEffect(() => {
+    if (!activeTab) return;
+    const onDashboard = activeTab === ACTIVE_TAB.OVERVIEW;
+    const hasEntry = (window.history.state as { soullog?: string } | null)?.soullog === 'inner';
+    if (!onDashboard && !hasEntry) {
+      window.history.pushState({ soullog: 'inner' }, '', window.location.href);
+    } else if (onDashboard && hasEntry) {
+      // Arrived on the Dashboard by a click rather than Back: drop the
+      // extra entry so the next Back leaves instead of doing nothing.
+      window.history.back();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if ((window.history.state as { soullog?: string } | null)?.soullog !== 'inner') {
+        setActiveTab(ACTIVE_TAB.OVERVIEW);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   // Clearing the badge when you open the screen that shows the items.
   useEffect(() => {
     if (activeTab === ACTIVE_TAB.NOTIFICATION || activeTab === ACTIVE_TAB.MESSAGES) {

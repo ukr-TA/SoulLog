@@ -134,10 +134,16 @@ function Sanctuary({
   theme,
   darkMode,
   onViewProfile,
+  focusPostId,
+  onFocusHandled,
 }: {
   theme: Theme;
   darkMode?: boolean;
   onViewProfile?: (username: string) => void;
+  /** Show this post first, with its comments open (a shared link, or
+   * "Comment" on someone's profile). */
+  focusPostId?: number | null;
+  onFocusHandled?: () => void;
 }) {
     const [newPost, setNewPost] = useState<string>('');
     const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
@@ -178,6 +184,32 @@ function Sanctuary({
     useEffect(() => {
       loadFeed();
     }, [loadFeed]);
+
+    // The post someone opened directly: fetched on its own (it may be far
+    // down the feed, or not in it at all), put first, comments open.
+    const [focusedId, setFocusedId] = useState<number | null>(null);
+    useEffect(() => {
+      if (!focusPostId || loading) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const found = await get<Post>(`/sanctuary/posts/${focusPostId}/`);
+          if (cancelled) return;
+          const comments = await get<Comment[]>(`/sanctuary/posts/${focusPostId}/comments/`).catch(() => []);
+          setPosts((current) => [
+            { ...found, showComments: true, commentsList: comments },
+            ...current.filter((row) => row.id !== focusPostId),
+          ]);
+          setFocusedId(focusPostId);
+        } catch {
+          if (!cancelled) setError("That post isn't available — it may have been removed, or it isn't shared with you.");
+        } finally {
+          onFocusHandled?.();
+        }
+      })();
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusPostId, loading]);
 
     /** Update one post in place without refetching the whole feed. */
     const patchPost = (postId: number, changes: Partial<Post>) =>
@@ -636,7 +668,8 @@ function Sanctuary({
             <div key={post.id} style={{
               background: theme.surface,
               borderRadius: '1rem',
-              border: `1px solid ${theme.border}`,
+              // The post opened directly is outlined, so it's clear which one.
+              border: post.id === focusedId ? `2px solid ${theme.accent}` : `1px solid ${theme.border}`,
               boxShadow: darkMode ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
               overflow: 'hidden',
             }}>

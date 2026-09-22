@@ -34,6 +34,8 @@ interface OthersProfileProps {
   username?: string;
   onBack?: () => void;
   onOpenConversation?: (conversationId: number) => void;
+  /** Open one of their posts in the Sanctuary, comments open. */
+  onOpenPost?: (postId: number) => void;
 }
 
 /**
@@ -162,7 +164,7 @@ const EMPTY: ViewedUser = {
   relationship: { state: 'none', direction: null, connection_id: null },
 };
 
-const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, username, onBack, onOpenConversation }: OthersProfileProps) => {
+const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, username, onBack, onOpenConversation, onOpenPost }: OthersProfileProps) => {
   const [darkMode] = useState(darkModeProp ?? true);
   const [isFollowing, setIsFollowing] = useState(false);
   // The photo URL that failed to load, so the initial shows instead.
@@ -732,7 +734,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                             className="px-3 py-1 rounded-full text-sm font-medium transition-all"
                             style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
                           >
-                            #{tag}
+                            #{tag.replace(/^#/, '')}
                           </span>
                         ))}
                       </div>
@@ -760,11 +762,12 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Button variant="outline" size="sm" onClick={() => handleSharePost(journal.id)}>
                           <Share2 className="w-4 h-4" />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleSharePost(journal.id)}>
+                        {/* Used to share the post, like the button beside it. */}
+                        <Button variant="outline" size="sm" onClick={() => onOpenPost?.(journal.id)}>
                           <MessageCircle className="w-4 h-4 mr-1" />
                           Comment
                         </Button>

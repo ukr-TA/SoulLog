@@ -33,9 +33,20 @@ export function readProfileLink(): string | null {
 
 /** Remove the link from the address bar once it has been followed. */
 export function clearProfileLink() {
-  if (PROFILE_HASH.test(window.location.hash)) {
+  if (PROFILE_HASH.test(window.location.hash) || POST_HASH.test(window.location.hash)) {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }
+}
+
+/**
+ * A shared Sanctuary post: `…/#/sanctuary/<id>`. Sharing a post copied this
+ * link from the start, but nothing opened it; the Dashboard now does.
+ */
+const POST_HASH = /^#\/sanctuary\/(\d+)/;
+
+export function readPostLink(): number | null {
+  const match = window.location.hash.match(POST_HASH);
+  return match ? Number(match[1]) : null;
 }
 
 /**

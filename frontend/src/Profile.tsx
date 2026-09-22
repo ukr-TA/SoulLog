@@ -745,7 +745,7 @@ const SoulLogOwnProfile = ({
                             className="px-3 py-1 rounded-full text-sm font-medium transition-all"
                             style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
                           >
-                            #{tag}
+                            #{tag.replace(/^#/, '')}
                           </span>
                         ))}
                       </div>

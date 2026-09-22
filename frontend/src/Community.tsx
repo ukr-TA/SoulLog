@@ -27,9 +27,12 @@ interface CommunityFeedProps {
   onOpenConversation?: (conversationId: number) => void;
   /** Which tab to open on — 'Souls' when arriving from "Find Connections". */
   initialTab?: string;
+  /** A Sanctuary post to show first, with its comments open. */
+  focusPostId?: number | null;
+  onFocusHandled?: () => void;
 }
 
-const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab }) => {
+const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab, focusPostId, onFocusHandled }) => {
 
   // Sanctuary, Souls and Videos are separate pages for Back and Forward.
   const tabFromHistory = () => (navState()?.tab === 'Community' ? navState()?.sub : undefined);
@@ -144,7 +147,7 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, se
       {/* Main Content Area */}
 
         {
-          activeTab === ACTIVE_TAB.SANCTUARY ? <Sanctuary theme={theme} darkMode={darkMode} onViewProfile={onViewProfile} />
+          activeTab === ACTIVE_TAB.SANCTUARY ? <Sanctuary theme={theme} darkMode={darkMode} onViewProfile={onViewProfile} focusPostId={focusPostId} onFocusHandled={onFocusHandled} />
           : activeTab === ACTIVE_TAB.SOULS ? (
               <ConnectionsPage
                 theme={theme}

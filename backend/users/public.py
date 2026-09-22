@@ -158,4 +158,9 @@ class PublicUserSerializer(serializers.Serializer):
                 return {"state": "blocked", "direction": "outgoing", "connection_id": connection.id}
             return {"state": "none", "direction": None, "connection_id": None}
 
+        if state == "declined":
+            # A declined request is over; to both people it reads as no
+            # relationship, so the button offers a fresh request.
+            return {"state": "none", "direction": None, "connection_id": None}
+
         return {"state": state, "direction": direction, "connection_id": connection.id}

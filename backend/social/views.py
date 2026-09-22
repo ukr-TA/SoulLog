@@ -305,8 +305,9 @@ class SuggestionsView(APIView):
     isn't suggested — SoulLog does not pad the list to fill a grid.
 
     Excluded, always: yourself, anyone you're already connected to, anyone
-    with a pending or declined request either way, anyone blocked either
-    way, and anyone whose profile visibility is `private`.
+    with a pending request either way, anyone blocked either way, and
+    anyone whose profile visibility is `private`. A declined request does
+    not exclude: both people become suggestions for each other again.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -323,13 +324,13 @@ class SuggestionsView(APIView):
             return Response([])
         limit = min(int(request.query_params.get("limit", 24)), 100)
 
+        # A declined request doesn't hide anyone: after "Decline", both people
+        # show up in each other's suggestions again and either can send a
+        # new request. Pending, accepted and blocked pairs stay excluded.
+        live = Connection.objects.involving(user).exclude(status=Connection.DECLINED)
         excluded = {user.id}
-        excluded |= set(
-            Connection.objects.involving(user).values_list("requester_id", flat=True)
-        )
-        excluded |= set(
-            Connection.objects.involving(user).values_list("addressee_id", flat=True)
-        )
+        excluded |= set(live.values_list("requester_id", flat=True))
+        excluded |= set(live.values_list("addressee_id", flat=True))
 
         candidates = (
             User.objects.exclude(id__in=excluded)

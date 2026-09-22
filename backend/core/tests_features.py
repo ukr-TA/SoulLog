@@ -273,3 +273,38 @@ class CommentAvatarTests(APITestCase):
         rows = rows.get("results", rows) if isinstance(rows, dict) else rows
         self.assertEqual(rows[0]["avatar"], "L")
         self.assertIn("avatarUrl", rows[0])
+
+
+class DeclinedRequestTests(APITestCase):
+    """After "Decline", the two people are suggestions for each other again."""
+
+    def setUp(self):
+        self.a_token = register_and_login(self.client, "asker")
+        self.b_token = register_and_login(self.client, "decider")
+        self.a, self.b = _user("asker"), _user("decider")
+        for user in (self.a, self.b):  # something in common, so they're suggested
+            user.profile.location = "Kathmandu"
+            user.profile.save()
+
+    def suggested(self, token):
+        rows = self.client.get("/api/v1/social/suggestions/", **auth_header(token)).data
+        return {row["username"]: row for row in rows}
+
+    def test_declined_pair_reappears_in_suggestions(self):
+        from social.models import Connection
+
+        self.client.post("/api/v1/social/requests/create/", {"user_id": self.b.id},
+                         format="json", **auth_header(self.a_token))
+        self.assertNotIn("decider", self.suggested(self.a_token))  # pending: hidden
+
+        Connection.objects.filter(requester=self.a, addressee=self.b).update(status=Connection.DECLINED)
+
+        for token, other in ((self.a_token, "decider"), (self.b_token, "asker")):
+            rows = self.suggested(token)
+            self.assertIn(other, rows)
+            self.assertEqual(rows[other]["relationship"]["state"], "none")
+
+        # ...and a fresh request goes through.
+        again = self.client.post("/api/v1/social/requests/create/", {"user_id": self.b.id},
+                                 format="json", **auth_header(self.a_token))
+        self.assertIn(again.status_code, (200, 201))

@@ -64,6 +64,9 @@
 /* When the container (or screen) is narrower than 800px */
 @media (max-width: 800px) {
   .grid {
-    grid-template-columns: 1fr !important;
+    /* minmax(0, 1fr), not 1fr: a plain 1fr column can't shrink below its
+       widest content, which made pages (someone's profile, the Souls
+       cards) wider than a phone screen and let them slide sideways. */
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }

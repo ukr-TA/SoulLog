@@ -18,7 +18,7 @@ import { PiChatsCircleLight } from "react-icons/pi";
 import { Preferences } from '@capacitor/preferences';
 import CreateJournal from './CreateJournal';
 import { applyFontSize } from './appearance';
-import { clearProfileLink, readProfileLink } from './links';
+import { clearProfileLink, readPostLink, readProfileLink } from './links';
 import MoodCheckin from './MoodCheckin';
 import SoulLogProfileForm from './ProfileForm';
 import SoulLogOthersProfile from './ProfileOthersView';
@@ -134,6 +134,15 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     setActiveTab(ACTIVE_TAB.COMMUNITY);
   };
 
+  // One Sanctuary post to show at the top of the feed with its comments
+  // open — from a shared link, or "Comment" on someone's profile.
+  const [focusPost, setFocusPost] = useState<number | null>(null);
+  const openPost = (postId: number) => {
+    setFocusPost(postId);
+    setCommunityTab('Sanctuary');
+    setActiveTab(ACTIVE_TAB.COMMUNITY);
+  };
+
   // One journal entry to open straight into its edit or share dialog.
   const [journalFocus, setJournalFocus] = useState<{ id: number; action: 'edit' | 'share' } | null>(null);
   const openJournalEntry = (id: number, action: 'edit' | 'share') => {
@@ -186,7 +195,12 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
         // Opened from a shared profile link? Go there — unless this is a
         // brand-new account, which sets up its own profile first.
         const linked = readProfileLink();
+        const linkedPost = readPostLink();
         clearProfileLink();
+        if (linkedPost && profile.onboardingCompleted) {
+          openPost(linkedPost);
+          return;
+        }
         if (linked && profile.onboardingCompleted) {
           if (linked.toLowerCase() === profile.username.toLowerCase()) setActiveTab(ACTIVE_TAB.PROFILE);
           else openProfile(linked);
@@ -806,6 +820,8 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               <CommunityFeed
                 key={communityTab ?? 'default'}
                 initialTab={communityTab}
+                focusPostId={focusPost}
+                onFocusHandled={() => setFocusPost(null)}
                 theme={theme}
                 darkMode={darkMode}
                 setHideExtra={setHideExtra}
@@ -841,6 +857,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 username={viewingProfile || undefined}
                 onBack={() => goBack(() => setActiveTab(ACTIVE_TAB.COMMUNITY))}
                 onOpenConversation={openConversation}
+                onOpenPost={openPost}
               />
             )
           : activeTab === ACTIVE_TAB.INSIGHTS ? <InsightsPage theme={theme} darkMode={darkMode} onWriteWithPrompt={writeWithPrompt} />

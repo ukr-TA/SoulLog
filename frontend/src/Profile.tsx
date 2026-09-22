@@ -14,6 +14,7 @@
  * from their own activity — an empty list is the right answer on day one.
  */
 
+import { goBack } from './nav';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft } from 'lucide-react';
 import { ApiError, api, get, post } from './api';
@@ -498,7 +499,7 @@ const SoulLogOwnProfile = ({
   return (
     <div style={{ backgroundColor: theme.background, color: theme.text, fontFamily: "'Merriweather', sans-serif" }}>
       <div className='header px-3 py-4' style={{backgroundColor: theme.background}}>
-        <ArrowLeft className='opacity-70 w-5 h-5 cursor-pointer' onClick={() => setActiveTab("Dashboard")} />
+        <ArrowLeft className='opacity-70 w-5 h-5 cursor-pointer' onClick={() => goBack(() => setActiveTab("Dashboard"))} />
       </div>
       {renderStatusBanner()}
       <div className="mx-auto p-4">

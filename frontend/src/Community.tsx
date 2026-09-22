@@ -5,6 +5,7 @@ import Sanctuary from './Sanctuary';
 import VideoInterface from './VideoPage';
 import SearchBarWithDropdown from './CommunitySearch';
 import type { Theme } from './theme';
+import { navState, pushNav } from './nav';
 
 const ACTIVE_TAB = {
   SANCTUARY: 'Sanctuary',
@@ -30,7 +31,21 @@ interface CommunityFeedProps {
 
 const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab }) => {
 
-  const [activeTab, setActiveTab] = useState<string>(initialTab || ACTIVE_TAB.SANCTUARY);
+  // Sanctuary, Souls and Videos are separate pages for Back and Forward.
+  const tabFromHistory = () => (navState()?.tab === 'Community' ? navState()?.sub : undefined);
+  const [activeTab, setActiveTabState] = useState<string>(tabFromHistory() || initialTab || ACTIVE_TAB.SANCTUARY);
+  const setActiveTab = (tab: string) => {
+    if (tab !== activeTab) pushNav('Community', tab);
+    setActiveTabState(tab);
+  };
+  useEffect(() => {
+    const onPopState = () => {
+      if (navState()?.tab !== 'Community') return;
+      setActiveTabState(navState()?.sub || initialTab || ACTIVE_TAB.SANCTUARY);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [initialTab]);
 
   const tabs = [
     { id: 'home', label: 'Sanctuary', icon: Home },

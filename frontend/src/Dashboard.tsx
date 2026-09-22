@@ -23,6 +23,7 @@ import MoodCheckin from './MoodCheckin';
 import SoulLogProfileForm from './ProfileForm';
 import SoulLogOthersProfile from './ProfileOthersView';
 import { get, openSocket } from './api';
+import { goBack, navState, pushNav, replaceNav } from './nav';
 import type { Theme } from './theme';
 import type { MyProfile } from './types';
 
@@ -97,6 +98,9 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   const [settingsVisit, setSettingsVisit] = useState(0);
   const openTab = (name: string) => {
     if (name === ACTIVE_TAB.SETTINGS) setSettingsVisit((n) => n + 1);
+    // Re-opening the screen you're inside (from a Settings section, say)
+    // is a new page too, so Back returns to where you were.
+    if (name === navState()?.tab && navState()?.sub) pushNav(name);
     setActiveTab(name);
   };
   useEffect(() => {
@@ -205,30 +209,31 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // the previous screen — the way it does on any website — and Back from
   // the first screen leaves the app. On Android the hardware back button
   // follows the same history.
-  const cameFromHistory = useRef(false);
+  //
+  // The rule is simple: whenever the screen shown differs from the one
+  // the current history entry describes, record a new entry. A Back or
+  // Forward step moves the history first and the screen follows, so it
+  // never records anything twice. See nav.ts.
   const hasHistory = useRef(false);
   useEffect(() => {
     if (!activeTab) return;
-    if (cameFromHistory.current) {
-      // This change *is* a Back/Forward step; recording it again would
-      // wipe out the forward history.
-      cameFromHistory.current = false;
-      return;
-    }
-    const entry = { soullog: true, tab: activeTab };
+    // Someone else's profile is a page per person, so Back from Maya's
+    // profile to David's shows David's.
+    const sub = activeTab === ACTIVE_TAB.PROFILE_OTHER ? viewingProfile || undefined : undefined;
+    const here = navState();
     if (!hasHistory.current) {
-      window.history.replaceState(entry, '', window.location.href);
       hasHistory.current = true;
-    } else if ((window.history.state as { tab?: string } | null)?.tab !== activeTab) {
-      window.history.pushState(entry, '', window.location.href);
+      replaceNav(activeTab, sub);
+    } else if (here?.tab !== activeTab || (sub && here?.sub !== sub)) {
+      pushNav(activeTab, sub);
     }
-  }, [activeTab]);
+  }, [activeTab, viewingProfile]);
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      const state = event.state as { soullog?: boolean; tab?: string } | null;
-      cameFromHistory.current = true;
-      setActiveTab(state?.soullog && state.tab ? state.tab : ACTIVE_TAB.OVERVIEW);
+    const onPopState = () => {
+      const here = navState();
+      if (here?.tab === ACTIVE_TAB.PROFILE_OTHER && here.sub) setViewingProfile(here.sub);
+      setActiveTab(here?.tab || ACTIVE_TAB.OVERVIEW);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -713,12 +718,16 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 mode={formReturnTo === ACTIVE_TAB.PROFILE ? 'edit' : 'onboarding'}
                 onDone={() => {
                   get<MyProfile>('/profile/').then(setMe).catch(() => {});
-                  setActiveTab(formReturnTo);
+                  const back = formReturnTo;
                   setFormReturnTo(ACTIVE_TAB.OVERVIEW);
+                  // Editing: back to the profile you came from, as Back
+                  // would. First-run setup has nowhere behind it.
+                  goBack(() => setActiveTab(back));
                 }}
                 onSkip={() => {
-                  setActiveTab(formReturnTo);
+                  const back = formReturnTo;
                   setFormReturnTo(ACTIVE_TAB.OVERVIEW);
+                  goBack(() => setActiveTab(back));
                 }}
               />
             )
@@ -727,7 +736,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 theme={theme}
                 darkMode={darkMode}
                 username={viewingProfile || undefined}
-                onBack={() => setActiveTab(ACTIVE_TAB.COMMUNITY)}
+                onBack={() => goBack(() => setActiveTab(ACTIVE_TAB.COMMUNITY))}
                 onOpenConversation={openConversation}
               />
             )

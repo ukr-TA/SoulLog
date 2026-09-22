@@ -9,6 +9,7 @@ import { Preferences } from '@capacitor/preferences';
 import { applyFontSize } from './appearance';
 import { ApiError, del, get, type PublicUser } from './api';
 import { logOut } from './session';
+import { goBack, navState, pushNav } from './nav';
 import type { Theme } from './theme';
 
 interface MessagePageProps {
@@ -204,8 +205,11 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   // Dark mode lives in one place, the switch at the bottom of the left
   // bar; Settings no longer carries a second copy of it.
   const SECTION_IDS: SectionId[] = ['profile', 'notifications', 'privacy', 'journaling', 'appearance', 'social', 'data', 'help'];
+  // Arriving by Back/Forward on a section's page opens that section.
+  const historySection = navState()?.tab === 'Settings' ? navState()?.sub : undefined;
+  const startSection = historySection || initialSection;
   const [activeSection, setActiveSection] = useState<SectionId>(
-    SECTION_IDS.includes(initialSection as SectionId) ? (initialSection as SectionId) : 'profile',
+    SECTION_IDS.includes(startSection as SectionId) ? (startSection as SectionId) : 'profile',
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -251,7 +255,27 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   const [saveError, setSaveError] = useState('');
   // Export problems are shown under the button, not in an alert().
   const [exportMessage, setExportMessage] = useState('');
-  const [showMobileDetail, setShowMobileDetail] = useState(Boolean(initialSection && initialSection !== 'profile'));
+  const [showMobileDetail, setShowMobileDetail] = useState(
+    Boolean(historySection) || Boolean(initialSection && initialSection !== 'profile'),
+  );
+
+  // Each section is its own page for Back and Forward: opening one records
+  // it, and Back returns to the list (or the section before).
+  useEffect(() => {
+    const onPopState = () => {
+      const here = navState();
+      if (here?.tab !== 'Settings') return;
+      if (here.sub && SECTION_IDS.includes(here.sub as SectionId)) {
+        setActiveSection(here.sub as SectionId);
+        setShowMobileDetail(true);
+      } else {
+        setShowMobileDetail(false);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Password change form (previously had no state at all — the inputs
   // were uncontrolled and "Update Password" had no onClick)
@@ -404,12 +428,15 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   };
 
   const handleMobileSectionClick = (sectionId: SectionId) => {
+    pushNav('Settings', sectionId);
     setActiveSection(sectionId);
     setShowMobileDetail(true);
   };
 
+  // The arrow does what Back does, so the two never disagree.
   const handleMobileBack = () => {
-    setShowMobileDetail(false);
+    if (navState()?.tab === 'Settings' && navState()?.sub) window.history.back();
+    else setShowMobileDetail(false);
   };
 
   /**
@@ -1261,7 +1288,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
             <>
               {/* Mobile Header - Fixed */}
               <div className='header px-3 py-4 gap-5 !justify-start' style={{borderColor: theme.border, backgroundColor: theme.background}}>
-                <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" onClick={() => setActiveTab("Dashboard")} />
+                <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" onClick={() => goBack(() => setActiveTab("Dashboard"))} />
                 <div className="flex-shrink-0 sticky top-0">
                   <h3 className="text-xl font-bold flex items-center gap-2">
                     <Settings size={16} style={{ color: theme.accent }} />

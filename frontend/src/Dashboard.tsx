@@ -8,13 +8,12 @@ import JournalHistoryPage from './Journal';
 import SoulLogOwnProfile from './Profile';
 import MessagesPage from './Messages';
 import SoulLogSettings from './Settings';
-import AccountsPage from './Accounts';
 import Notifications from './NotificationPage';
 import { LuLayoutDashboard } from "react-icons/lu";
 import { BsJournalBookmark } from "react-icons/bs";
 import { CgInsights } from "react-icons/cg";
 import { MdGroups } from "react-icons/md";
-import { Bell } from 'lucide-react';
+import { Bell, Settings as SettingsIcon } from 'lucide-react';
 import { PiChatsCircleLight } from "react-icons/pi";
 import { Preferences } from '@capacitor/preferences';
 import CreateJournal from './CreateJournal';
@@ -33,7 +32,6 @@ const ACTIVE_TAB = {
   INSIGHTS: 'Insights',
   COMMUNITY: 'Community',
   SETTINGS: 'Settings',
-  ACCOUNTS: 'Accounts',
   MESSAGES: 'Whispers',
   PROFILE: 'Profile',
   // Two screens that existed in the codebase but had no route into them.
@@ -94,6 +92,13 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // Which Settings section to open on — Privacy when arriving from the
   // gear in Whispers, where "who can message me" lives.
   const [settingsSection, setSettingsSection] = useState<string>('profile');
+  // Bumped by each click on "Settings" in the menu, so clicking it while
+  // inside a section returns to the Settings list.
+  const [settingsVisit, setSettingsVisit] = useState(0);
+  const openTab = (name: string) => {
+    if (name === ACTIVE_TAB.SETTINGS) setSettingsVisit((n) => n + 1);
+    setActiveTab(name);
+  };
   useEffect(() => {
     if (activeTab !== ACTIVE_TAB.SETTINGS) setSettingsSection('profile');
   }, [activeTab]);
@@ -364,10 +369,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 { name: 'Community', icon: <MdGroups size={21} />, active: false },
                 { name: 'Notification', icon: <Bell size={21} />, active: false, badge: unreadNotifications },
                 { name: 'Insights', icon: <CgInsights size={21} />, active: false },
+                { name: 'Settings', icon: <SettingsIcon size={19} />, active: false },
               ] as NavItem[]).map((item, index) => (
                 <button
                   key={index}
-                  onClick={() => setActiveTab(item.name)}
+                  onClick={() => openTab(item.name)}
                   style={{
                     background: activeTab === item.name ? theme.accent + '15' : 'transparent',
                     border: activeTab === item.name ? `1px solid ${theme.accent}30` : '1px solid transparent',
@@ -492,7 +498,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 padding: sidebarCollapsed ? '0' : '1rem',
                 color: theme.text,
               }}
-              onClick={() => {setActiveTab("Accounts")}}
+              onClick={() => setActiveTab(ACTIVE_TAB.PROFILE)}
               onMouseEnter={(e) => e.currentTarget.style.background = theme.border + '30'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                 <div style={{
@@ -647,7 +653,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 flexShrink: 0
               }}
               onClick={() => {
-                setActiveTab(ACTIVE_TAB.ACCOUNTS);
+                setActiveTab(ACTIVE_TAB.PROFILE);
               }}
               >
                 {me?.avatar_url && !avatarBroken ? (
@@ -732,8 +738,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 onOpenSettings={() => { setSettingsSection('privacy'); setActiveTab(ACTIVE_TAB.SETTINGS); }}
               />
             )
-          : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={settingsSection} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
-          : activeTab === ACTIVE_TAB.ACCOUNTS ? <AccountsPage theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} isMobile setDarkMode={setDarkMode} setActiveTab={setActiveTab}/>
+          : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={`${settingsSection}-${settingsVisit}`} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
           : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab}/>
           /* CreateJournal takes no `backPage`: it navigates back to Journal
              itself, so the prop it was being handed was never read. */
@@ -760,7 +765,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
           ].map((item, index) => (
             <button
               key={index}
-              onClick={() => setActiveTab(item.name)}
+              onClick={() => openTab(item.name)}
               style={{
                 background: 'transparent',
                 borderRadius: '1rem',

@@ -498,7 +498,7 @@ const SoulLogOwnProfile = ({
   return (
     <div style={{ backgroundColor: theme.background, color: theme.text, fontFamily: "'Merriweather', sans-serif" }}>
       <div className='header px-3 py-4' style={{backgroundColor: theme.background}}>
-        <ArrowLeft className='opacity-70 w-5 h-5 cursor-pointer' onClick={() => setActiveTab("Accounts")} />
+        <ArrowLeft className='opacity-70 w-5 h-5 cursor-pointer' onClick={() => setActiveTab("Dashboard")} />
       </div>
       {renderStatusBanner()}
       <div className="mx-auto p-4">
@@ -513,7 +513,8 @@ const SoulLogOwnProfile = ({
                 <div 
                   className="h-35 rounded-xl mb-6 relative overflow-hidden flex items-center justify-center opacity-50"
                   style={{ 
-                    background: coverImage ? `url(${coverImage})` : theme.background,
+                    backgroundColor: theme.background,
+                    backgroundImage: coverImage ? `url(${coverImage})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}

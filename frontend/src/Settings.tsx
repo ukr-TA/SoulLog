@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   User, Lock, Bell, Shield, BookOpen, Users, Palette,
-  ChevronRight, Moon, Sun, Mail, Phone,
-  Download, Trash2, Eye, Settings,
+  ChevronRight, Mail, Phone,
+  Download, Trash2, Eye, Settings, Database, HelpCircle, LogOut, Keyboard,
   ArrowLeft, Save, AlertTriangle, Check, Target, Calendar
 } from 'lucide-react';
 import { Preferences } from '@capacitor/preferences';
-import { applyFontSize, saveThemePreference } from './appearance';
+import { applyFontSize } from './appearance';
 import { ApiError, del, get, type PublicUser } from './api';
+import { logOut } from './session';
 import type { Theme } from './theme';
 
 interface MessagePageProps {
@@ -87,8 +88,14 @@ interface AppSettings {
   };
 }
 
-/** The sidebar sections, which are also the keys of `AppSettings`. */
-type SectionId = keyof AppSettings;
+/** A group of stored settings — the keys of `AppSettings`. */
+type SettingsGroup = keyof AppSettings;
+
+/**
+ * The sections in the Settings list: every stored group, plus two that
+ * hold actions rather than switches (your data, and help).
+ */
+type SectionId = SettingsGroup | 'data' | 'help';
 
 /**
  * The section icons are cloned with a className and a style, so the
@@ -193,15 +200,10 @@ const SettingItem = ({ icon, title, description, children, onClick, showChevron 
   </div>
 );
 
-const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, darkMode = true, setDarkMode, initialSection } : MessagePageProps) => {
-  // The theme is the app's, not a copy held here: this switch used to flip
-  // a local value that nothing else read, so it never changed anything.
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode?.(next);
-    saveThemePreference(next);
-  };
-  const SECTION_IDS: SectionId[] = ['profile', 'privacy', 'notifications', 'journaling', 'social', 'appearance'];
+const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, initialSection } : MessagePageProps) => {
+  // Dark mode lives in one place, the switch at the bottom of the left
+  // bar; Settings no longer carries a second copy of it.
+  const SECTION_IDS: SectionId[] = ['profile', 'notifications', 'privacy', 'journaling', 'appearance', 'social', 'data', 'help'];
   const [activeSection, setActiveSection] = useState<SectionId>(
     SECTION_IDS.includes(initialSection as SectionId) ? (initialSection as SectionId) : 'profile',
   );
@@ -410,6 +412,46 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
     setShowMobileDetail(false);
   };
 
+  /**
+   * Settings save themselves.
+   *
+   * The only Save button lived in the wide two-column layout, which the
+   * app never shows — every screen size gets the list-and-detail layout —
+   * so switches moved and nothing was ever stored. Now each change is
+   * sent a moment after it's made (text fields wait until you pause), and
+   * the header says "Saved".
+   */
+  const dirty = useRef(false);
+  useEffect(() => {
+    if (!dirty.current) return;
+    const timer = window.setTimeout(() => {
+      dirty.current = false;
+      autoSave();
+    }, 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  const autoSave = async () => {
+    setSaveError('');
+    try {
+      const response = await authFetch('/settings/', {
+        method: 'PATCH',
+        body: JSON.stringify(settings),
+      });
+      if (response.ok) {
+        // The response isn't written back into the form: you may have
+        // typed more while it was in flight.
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 1800);
+      } else {
+        setSaveError("Couldn't save that change. Please try again.");
+      }
+    } catch {
+      setSaveError('Could not reach the server. Check your connection.');
+    }
+  };
+
   const handleSave = async () => {
     setSaveError('');
     try {
@@ -460,11 +502,12 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
   // Generic over the group and the key within it, so `('privacy',
   // 'showEmail', 'yes')` is a compile error rather than a setting that
   // quietly stops being a boolean.
-  const updateSetting = <S extends SectionId, K extends keyof AppSettings[S]>(
+  const updateSetting = <S extends SettingsGroup, K extends keyof AppSettings[S]>(
     section: S,
     key: K,
     value: AppSettings[S][K],
   ) => {
+    dirty.current = true;
     setSettings((prev) => ({
       ...prev,
       [section]: {
@@ -478,13 +521,24 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
 
 
   const sections: SettingsSection[] = [
+    // Most-used first: your account, then what reaches you, who sees you,
+    // how you write, how it looks, community, and the rarely-needed rest.
     { id: 'profile', title: 'Profile & Account', icon: <User />, color: theme.accent },
-    { id: 'privacy', title: 'Privacy & Security', icon: <Shield />, color: theme.secondary },
     { id: 'notifications', title: 'Notifications', icon: <Bell />, color: theme.accent },
+    { id: 'privacy', title: 'Privacy & Security', icon: <Shield />, color: theme.secondary },
     { id: 'journaling', title: 'Journaling', icon: <BookOpen />, color: theme.secondary },
+    { id: 'appearance', title: 'Appearance', icon: <Palette />, color: theme.secondary },
     { id: 'social', title: 'Social Features', icon: <Users />, color: theme.accent },
-    { id: 'appearance', title: 'Appearance', icon: <Palette />, color: theme.secondary }
+    { id: 'data', title: 'Your Data', icon: <Database />, color: theme.secondary },
+    { id: 'help', title: 'Help & Support', icon: <HelpCircle />, color: theme.accent },
   ];
+
+  const handleLogout = async () => {
+    if (window.confirm('Sign out of SoulLog on this device?')) {
+      await logOut();
+      window.location.reload();
+    }
+  };
 
   // Looked up once instead of at every point of use, so a single
   // `undefined` check narrows the type for all of them.
@@ -599,6 +653,17 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
           </div>
         )}
 
+      </div>
+    </div>
+  );
+
+  const renderDataSettings = () => (
+    <div className="space-y-4">
+      <p className="text-sm opacity-75">
+        Everything you've written and logged — entries, mood check-ins, posts and
+        settings — as one JSON file you can keep or take elsewhere.
+      </p>
+      <div className="space-y-3">
         <Button theme={theme} variant="outline" className="w-full" onClick={handleExportData}>
           <Download className="w-4 h-4" />
           Export My Data
@@ -641,6 +706,34 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
           </div>
         )}
       </div>
+    </div>
+  );
+
+  const renderHelpSettings = () => (
+    <div className="space-y-2">
+      <SettingItem theme={theme}
+        icon={<Mail />}
+        title="Contact support"
+        description="Questions, bugs or ideas — write to support@soullog.app"
+      >
+        <a
+          href="mailto:support@soullog.app?subject=SoulLog%20support"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium"
+          style={{ backgroundColor: theme.accent, color: theme.background }}
+        >
+          Email us
+        </a>
+      </SettingItem>
+      <SettingItem theme={theme}
+        icon={<Lock />}
+        title="Forgot your password?"
+        description="Sign out, then choose “Forgot password?” on the sign-in screen for a reset link."
+      />
+      <SettingItem theme={theme}
+        icon={<Keyboard />}
+        title="Dashboard shortcuts"
+        description="V view journal · T today's goal · P prompt of the day · M mood check-in"
+      />
     </div>
   );
 
@@ -1008,24 +1101,11 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
 
   const renderAppearanceSettings = () => (
     <div className="space-y-4">
-      {/* Only show dark mode toggle on mobile */}
-      <div className="block md:hidden">
-        <SettingItem theme={theme}
-          icon={darkMode ? <Moon /> : <Sun />}
-          title="Dark Mode"
-          description="Switch between light and dark themes"
-        >
-          <Toggle theme={theme} 
-            enabled={darkMode}
-            onToggle={toggleDarkMode}
-          />
-        </SettingItem>
-      </div>
-
+      {/* Dark mode is the switch at the bottom of the left bar. */}
       <SettingItem theme={theme}
         icon={<Settings />}
         title="Font Size"
-        description="Adjust text size for better readability"
+        description="Adjust text size for better readability. Dark or light mode is the switch at the bottom of the left bar."
       >
         <select 
           value={settings.appearance.fontSize}
@@ -1084,13 +1164,29 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
               {section.id === 'notifications' && 'Alerts & reminders'}
               {section.id === 'journaling' && 'Writing preferences'}
               {section.id === 'social' && 'Community & connections'}
-              {section.id === 'appearance' && 'Theme & display'}
+              {section.id === 'appearance' && 'Text size'}
+              {section.id === 'data' && 'Export or delete your account'}
+              {section.id === 'help' && 'Contact support & tips'}
             </p>
           </div>
 
           <ChevronRight className="w-5 h-5 opacity-60 flex-shrink-0 me-3" />
         </div>
       ))}
+
+      <button
+        onClick={handleLogout}
+        className="w-full flex items-center py-3 rounded-lg cursor-pointer transition-all duration-300 text-left mt-4"
+        style={{ backgroundColor: `${theme.surface}`, border: '1px solid #ff475740', color: '#ff6b6b' }}
+      >
+        <div className="w-14 h-14 flex items-center justify-center flex-shrink-0">
+          <LogOut className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium">Sign Out</h4>
+          <p className="text-sm opacity-70 truncate">Sign out of SoulLog on this device</p>
+        </div>
+      </button>
     </div>
   );
 
@@ -1104,7 +1200,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
           backgroundColor: theme.surface
         }}>
           <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" onClick={handleMobileBack} />
-          <div>
+          <div className="flex-1 min-w-0">
             <h3 className="text-lg font-bold" style={{ color: theme.text}}>
               {activeSectionMeta?.title || 'Settings'}
             </h3>
@@ -1114,10 +1210,18 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
               {activeSection === 'notifications' && 'Customize your notification preferences'}
               {activeSection === 'journaling' && 'Personalize your journaling experience'}
               {activeSection === 'social' && 'Connect with mindful community and share your journey'}
-              {activeSection === 'appearance' && 'Customize the app appearance and language'}
+              {activeSection === 'appearance' && 'Adjust how text is displayed'}
+              {activeSection === 'data' && 'Download everything, or delete your account'}
+              {activeSection === 'help' && 'Get in touch, and a few tips'}
             </p>
           </div>
         </div>
+
+        {(saved || saveError) && (
+          <div role="status" className="px-4 py-2 text-sm flex items-center gap-2" style={{ color: saveError ? '#ff6b6b' : theme.secondary }}>
+            {saveError ? saveError : (<><Check className="w-4 h-4" /> Saved</>)}
+          </div>
+        )}
 
         {/* Mobile Settings Content - Only this part scrolls */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -1134,6 +1238,8 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
       case 'journaling': return renderJournalingSettings();
       case 'social': return renderSocialSettings();
       case 'appearance': return renderAppearanceSettings();
+      case 'data': return renderDataSettings();
+      case 'help': return renderHelpSettings();
       default: return renderProfileSettings();
     }
   };
@@ -1155,13 +1261,13 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
             <>
               {/* Mobile Header - Fixed */}
               <div className='header px-3 py-4 gap-5 !justify-start' style={{borderColor: theme.border, backgroundColor: theme.background}}>
-                <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" onClick={() => setActiveTab("Accounts")} />
+                <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" onClick={() => setActiveTab("Dashboard")} />
                 <div className="flex-shrink-0 sticky top-0">
                   <h3 className="text-xl font-bold flex items-center gap-2">
                     <Settings size={16} style={{ color: theme.accent }} />
                     Settings
                   </h3>
-                  <p className="text-sm opacity-75">Configure your SoulLog experience</p>
+                  <p className="text-sm opacity-75">Changes save automatically</p>
                 </div>
               </div>
               
@@ -1330,7 +1436,9 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, dar
                           {activeSection === 'notifications' && 'Customize your notification preferences'}
                           {activeSection === 'journaling' && 'Personalize your journaling experience'}
                           {activeSection === 'social' && 'Connect with the mindful community and share your journey'}
-                          {activeSection === 'appearance' && 'Customize the app appearance and language'}
+                          {activeSection === 'appearance' && 'Adjust how text is displayed'}
+                          {activeSection === 'data' && 'Download everything, or delete your account'}
+                          {activeSection === 'help' && 'Get in touch, and a few tips'}
                         </p>
                       </div>
                     </div>

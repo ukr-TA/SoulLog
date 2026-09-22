@@ -50,6 +50,7 @@ type ViewedProfile = PublicProfile & {
   current_focus?: string;
   growth_areas?: string;
   values?: string;
+  cover_url?: string | null;
 };
 
 /** A post's first line, when the post has more than one; otherwise nothing. */
@@ -105,6 +106,7 @@ interface ViewedUser {
   growthAreas: string;
   values: string;
   avatarUrl: string | null;
+  coverUrl: string | null;
   stats: { totalEntries: number; totalReactions: number };
   topJournals: TopJournal[];
   favoriteTopics: string[];
@@ -148,6 +150,7 @@ const EMPTY: ViewedUser = {
   growthAreas: '',
   values: '',
   avatarUrl: null,
+  coverUrl: null,
   stats: { totalEntries: 0, totalReactions: 0 },
   topJournals: [],
   favoriteTopics: [],
@@ -203,6 +206,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
         growthAreas: profile.growth_areas || '',
         values: profile.values || '',
         avatarUrl: profile.avatar_url || null,
+        coverUrl: profile.cover_url || null,
         // Only what this viewer is entitled to know about them: the
         // entries and posts they've shared. A streak is private, and
         // "mentoring sessions" was a number nothing in SoulLog records.
@@ -494,7 +498,10 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                 <div 
                   className="h-48 md:h-56 rounded-xl mb-6 relative overflow-hidden flex items-center justify-center"
                   style={{ 
-                    background: theme.gradient,
+                    // Their cover photo when they have one. Longhand
+                    // properties only: mixing `background` with
+                    // `backgroundSize` made React warn on every re-render.
+                    backgroundImage: userData.coverUrl ? `url(${userData.coverUrl})` : theme.gradient,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}

@@ -63,7 +63,9 @@ export class ApiError extends Error {
 
   /** Pull something a person can read out of a DRF error body. */
   static messageFrom(status: number, data: ErrorBody): string {
-    if (typeof data === 'string' && data) return data;
+    // A server crash page (HTML) is never shown to people as text.
+    if (typeof data === 'string' && data && !/^\s*</.test(data)) return data;
+    if (status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
     if (data && typeof data === 'object') {
       const body = data as Record<string, unknown>;
       if (typeof body.detail === 'string') return body.detail;

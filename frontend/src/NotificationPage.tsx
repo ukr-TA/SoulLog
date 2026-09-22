@@ -75,6 +75,16 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
   // for the rest of this visit, so you can still tell which they were.
   const newThisVisit = useRef<Set<number>>(new Set());
 
+  /**
+   * New notifications (unread, or read just now by opening this page) stay
+   * bright: a gold-tinted row and a dot. Ones you'd already seen sit on a
+   * slightly darker row with softer text, so the two are easy to tell apart.
+   */
+  const isFresh = (row: { id: number; isRead: boolean }) =>
+    !row.isRead || newThisVisit.current.has(row.id);
+  const rowBackground = (row: { id: number; isRead: boolean }) =>
+    isFresh(row) ? theme.accent + '1A' : 'rgba(0, 0, 0, 0.18)';
+
   const load = useCallback(async () => {
     try {
       const data = await get<{ notifications: Notification[]; counts: Counts }>(
@@ -356,14 +366,14 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                 borderBottom: index < getFilteredNotifications().length - 1 ? `1px solid ${theme.border}` : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
-                background: notification.isRead && !newThisVisit.current.has(notification.id) ? 'transparent' : theme.accent + '08',
+                background: rowBackground(notification),
                 position: 'relative'
               }}
               onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => {
-                setTargetBackground(e.target, theme.border + '20');
+                setTargetBackground(e.currentTarget, theme.border + '20');
               }}
               onMouseLeave={(e: ReactMouseEvent<HTMLElement>) => {
-                setTargetBackground(e.target, notification.isRead && !newThisVisit.current.has(notification.id) ? 'transparent' : theme.accent + '08');
+                setTargetBackground(e.currentTarget, rowBackground(notification));
               }}
             >
               {/* Unread indicator */}
@@ -373,8 +383,8 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                   left: '0.5rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  width: '4px',
-                  height: '4px',
+                  width: '6px',
+                  height: '6px',
                   background: theme.accent,
                   borderRadius: '50%'
                 }} />
@@ -383,7 +393,10 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
               <div style={{
                 display: 'flex',
                 gap: isMobile ? '0.75rem' : '1rem',
-                alignItems: 'flex-start'
+                alignItems: 'flex-start',
+                // Read ones step back a little — still easy to read.
+                opacity: isFresh(notification) ? 1 : 0.72,
+                transition: 'opacity 0.3s ease'
               }}>
                 {/* User Avatar */}
                 <div style={{
@@ -540,7 +553,7 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
             fontFamily: "'Poppins', sans-serif"
           }}
           onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => {
-            setTargetBackground(e.target, theme.border + '20');
+            setTargetBackground(e.currentTarget, theme.border + '20');
           }}
           onMouseLeave={(e: ReactMouseEvent<HTMLElement>) => {
             setTargetBackground(e.target, 'transparent');

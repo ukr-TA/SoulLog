@@ -463,7 +463,7 @@ const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
             alignItems: 'center',
             gap: '10px'
           }}>
-            <span>💡</span> AI-Generated Insights from your entries
+            <span>💡</span> Insights from your entries
           </div>
           
           {isLoadingInsights ? (

@@ -20,6 +20,31 @@ rather than faked.
 | **Quality** | 223 backend tests incl. real WebSocket tests · GitHub Actions CI (Postgres, deploy checks, Android build, Docker) |
 | **Ops** | Docker Compose · gunicorn + uvicorn workers · WhiteNoise · S3-ready media storage · optional Sentry |
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard — greeting, streak, mood check-in, 14-day mood grid and today's goal" width="100%">
+</p>
+
+| Journal | Insights |
+|---|---|
+| <img src="docs/screenshots/journal.png" alt="Journal"> | <img src="docs/screenshots/insights.png" alt="Insights"> |
+
+| Community (Sanctuary) | Whispers — real-time messages |
+|---|---|
+| <img src="docs/screenshots/community.png" alt="Community feed"> | <img src="docs/screenshots/whispers.png" alt="Whispers chat"> |
+
+| Profile & badges | Help & Support |
+|---|---|
+| <img src="docs/screenshots/profile.png" alt="Profile"> | <img src="docs/screenshots/help.png" alt="Help and Support"> |
+
+<p align="center">
+  <img src="docs/screenshots/mobile-dashboard.png" alt="SoulLog on a phone" width="280"><br>
+  <sub>The same app on a phone (Capacitor build).</sub>
+</p>
+
+<sub>Screenshots use the built-in demo account and demo data.</sub>
+
 ## Quick start (macOS)
 
 ```bash

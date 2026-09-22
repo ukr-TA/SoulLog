@@ -77,7 +77,7 @@ ENTRIES = [
 
 POSTS = [
     ("Three months of showing up. Not every day — I want to be honest about that. But most days, "
-     "and the most days are adding up to something.", ["#consistency", "#growth"]),
+     "and those days are adding up to something.", ["#consistency", "#growth"]),
     ("Reminder I needed today: rest is not a reward for finishing. It's part of the work.",
      ["#rest", "#selfcompassion"]),
     ("Started keeping a note of small kindnesses I notice. Ten days in and the list is longer "
@@ -85,7 +85,26 @@ POSTS = [
      ["#gratitude", "#attention"]),
     ("Meditation didn't 'work' for me for two years. Turns out I was measuring it wrong — "
      "looking for calm instead of just noticing what was there.", ["#meditation", "#mindfulness"]),
+    ("Went for a walk without headphones. Heard three kinds of birds I couldn't name and one "
+     "neighbour singing badly. Best twenty minutes of the week.", ["#outside", "#presence"]),
+    ("Told a friend I was struggling instead of saying 'fine'. The world did not end. "
+     "She said 'me too'.", ["#honesty", "#connection"]),
+    ("My mood log says Sundays are my hardest day. I'd never have guessed. Planning something "
+     "small and kind for next Sunday evening.", ["#patterns", "#selfcare"]),
+    ("Wrote a whole page about a work email I was dreading. Then sent it. Took four minutes.",
+     ["#anxiety", "#avoidance"]),
+    ("Learning that 'I don't know yet' is a complete answer.", ["#growth", "#patience"]),
+    ("Slept eight hours two nights in a row and I'm suddenly a nicer person. Noted for the "
+     "record.", ["#sleep", "#energy"]),
+    ("Cooked my grandmother's dal from memory. Got it slightly wrong, called my mum to ask, "
+     "ended up talking for an hour.", ["#family", "#gratitude"]),
+    ("Some days the entry is one line. Today it's: tired, but okay.", ["#honesty", "#journaling"]),
+    ("Tried the prompt 'what am I avoiding?' and wrote for twenty minutes straight. Apparently "
+     "a lot.", ["#journaling", "#reflection"]),
+    ("Deleted two apps from my phone. Found an hour I didn't know I had.",
+     ["#focus", "#habits"]),
 ]
+
 
 COMMENTS = [
     "This is exactly where I am right now. Thank you for writing it down.",
@@ -298,10 +317,11 @@ class Command(BaseCommand):
         from sanctuary.models import PostBookmark, PostComment, PostReaction, SanctuaryPost
 
         count = 0
+        pool = random.sample(POSTS, k=len(POSTS))
         for user in users:
-            # Distinct posts per person — the feed used to show the same
-            # author posting the same words twice.
-            for content, tags in random.sample(POSTS, k=random.randint(1, 3)):
+            # Every post in the feed is different — the feed used to show
+            # the same words from two people, or twice from one.
+            for content, tags in [pool.pop() for _ in range(min(random.randint(1, 3), len(pool)))]:
                 post = SanctuaryPost.objects.create(
                     author=user, content=content, tags=tags, is_demo=True
                 )

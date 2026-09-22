@@ -257,7 +257,7 @@ class SeedDemoTests(APITestCase):
 
         call_command("seed_demo", verbosity=0)
         self.assertFalse(
-            SanctuaryPost.objects.values("author", "content").annotate(n=Count("id")).filter(n__gt=1).exists()
+            SanctuaryPost.objects.values("content").annotate(n=Count("id")).filter(n__gt=1).exists()
         )
         self.assertFalse(
             JournalEntry.objects.values("owner", "title").annotate(n=Count("id")).filter(n__gt=1).exists()

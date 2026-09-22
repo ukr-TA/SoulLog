@@ -90,7 +90,18 @@ item leading to a billing screen advertises something that does not exist.
 **Status: DEFERRED.** `community.Topic` is a followable label, not a group
 with membership roles, moderation and per-group privacy. Building that
 machinery before anyone has decided what a SoulLog group *is* would be
-building the wrong thing carefully.
+building the wrong thing carefully. The Mood Check-in screen's "Soul
+Circles" card says "coming soon" and its button is disabled, rather than
+pretending to open something.
+
+### Settings that were removed rather than faked
+Several switches were saved but never read by anything: Email
+Notifications, Journal/Goal/Streak Reminders, Activity Sharing, Mention
+Notifications, Journal Sharing, Public Profile, Group Discussions,
+Community Groups and Language. They were removed. Every switch left in
+Settings changes real behaviour (enforced on the server where it matters:
+friend requests, followers, suggestions, badge visibility, the
+notifications master switch, daily/weekly goals, the weekly digest).
 
 ---
 
@@ -171,7 +182,10 @@ domain verification, SPF/DKIM/DMARC.
 per request, which is fast at current data volumes and always current.
 The extension point is documented in `insights/engine.py`. **Production
 work, if needed:** a worker (Celery or similar) for insight
-precomputation and email sending.
+precomputation and email sending. Until then the Weekly Digest is sent
+lazily the first time someone opens their dashboard in a new week
+(deduplicated per ISO week), and `python manage.py award_badges` backfills
+badges for existing accounts (run by `scripts/dev.sh`; idempotent).
 
 ### Real-time
 **Status: COMPLETE.** Django Channels over ASGI. The channel layer is

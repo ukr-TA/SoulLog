@@ -7,7 +7,7 @@ import { HiOutlineSave } from "react-icons/hi";
 import { MdPreview } from "react-icons/md";
 import { GrClearOption } from "react-icons/gr";
 import { Preferences } from '@capacitor/preferences';
-import { ApiError, upload } from './api';
+import { ApiError, get, upload } from './api';
 import type { JournalEntry } from './types';
 import type { Theme } from './theme';
 
@@ -23,10 +23,51 @@ type Props = {
   isMobile: boolean;
   setHideExtra: (hide: boolean) => void;
   setActiveTab: (tab: string) => void;
+  /**
+   * A prompt to start with — set when the user arrives from "Prompt of the
+   * Day", a quote, or "Write about it" on the Dashboard. It is added to
+   * the entry exactly as if they had picked it from the prompt list.
+   */
+  initialPrompt?: string | null;
 };
 
-const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) => {
-  const [journalEntry, setJournalEntry] = useState('');
+/** Where an unsaved entry is kept when Auto-Save is on. Never leaves the device. */
+const DRAFT_KEY = 'soullog.composerDraft';
+
+/**
+ * The starting lines for Settings → Journaling → Default Template.
+ *
+ * The setting was saved and never read, so every entry started blank
+ * whatever you chose. "Blank" still does.
+ */
+const TEMPLATES: Record<string, string> = {
+  blank: '',
+  gratitude: '🙏 Three things I\'m grateful for today:\n1. \n2. \n3. \n\n',
+  reflection: '🌅 How today went:\n\n💭 What stayed with me:\n\n',
+  goals: '🎯 What I\'m working towards:\n\n✅ Progress today:\n\n➡️ Next step:\n\n',
+  mindfulness: '🌿 Right now I notice:\n\n🫁 How my body feels:\n\n',
+};
+
+/** The app's twelve moods — the same list the server and MoodCheckin use. */
+const MOODS: { value: string; emoji: string }[] = [
+  { value: 'Happy', emoji: '😊' }, { value: 'Calm', emoji: '😌' }, { value: 'Grateful', emoji: '🙏' },
+  { value: 'Hopeful', emoji: '🌱' }, { value: 'Content', emoji: '🙂' }, { value: 'Excited', emoji: '🤩' },
+  { value: 'Anxious', emoji: '😰' }, { value: 'Stressed', emoji: '😣' }, { value: 'Sad', emoji: '😢' },
+  { value: 'Lonely', emoji: '😔' }, { value: 'Frustrated', emoji: '😤' }, { value: 'Angry', emoji: '😠' },
+];
+
+interface JournalingPrefs {
+  autoSave?: boolean;
+  defaultTemplate?: string;
+  moodTracking?: boolean;
+}
+
+const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab, initialPrompt }: Props) => {
+  // A prompt handed over from the Dashboard goes into the entry the same
+  // way picking it from the prompt list does: as a line you write under.
+  const [journalEntry, setJournalEntry] = useState(
+    initialPrompt ? `💭 ${initialPrompt}\n\n` : '',
+  );
   const [journalTitle, setJournalTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -34,7 +75,9 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
   const [customPrompts, setCustomPrompts] = useState<Prompt[]>([]);
   const [newCustomPrompt, setNewCustomPrompt] = useState('');
   const [showCustomPromptInput, setShowCustomPromptInput] = useState(false);
-  const [addedPrompts, setAddedPrompts] = useState<Prompt[]>([]);
+  const [addedPrompts, setAddedPrompts] = useState<Prompt[]>(
+    initialPrompt ? [{ text: initialPrompt, emoji: '💭', category: 'Today' }] : [],
+  );
   const [showPrompts, setShowPrompts] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [wordCount, setWordCount] = useState(0);
@@ -42,6 +85,69 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Settings → Journaling, read once when the composer opens.
+  const [prefs, setPrefs] = useState<JournalingPrefs>({});
+  const [mood, setMood] = useState('');
+  const [restoredDraft, setRestoredDraft] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<{ journaling?: JournalingPrefs }>('/settings/')
+      .then((saved) => {
+        if (cancelled) return;
+        const journaling = saved.journaling ?? {};
+        setPrefs(journaling);
+
+        // A prompt handed over from the Dashboard wins; otherwise an
+        // auto-saved draft; otherwise the chosen template.
+        if (initialPrompt) return;
+        if (journaling.autoSave !== false) {
+          try {
+            const draft = localStorage.getItem(DRAFT_KEY);
+            if (draft) {
+              const parsed = JSON.parse(draft) as { title?: string; entry?: string; mood?: string };
+              if (parsed.entry || parsed.title) {
+                setJournalEntry(parsed.entry || '');
+                setJournalTitle(parsed.title || '');
+                setMood(parsed.mood || '');
+                setRestoredDraft(true);
+                return;
+              }
+            }
+          } catch {
+            // An unreadable draft is not worth blocking a new entry over.
+          }
+        }
+        const template = TEMPLATES[journaling.defaultTemplate || 'blank'] ?? '';
+        if (template) setJournalEntry((current) => current || template);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // Once, when the composer opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-Save: keep the unsaved entry on this device as you type, so
+  // closing the tab or losing signal doesn't lose it. Off in Settings
+  // means nothing is kept.
+  useEffect(() => {
+    if (prefs.autoSave === false) return;
+    const timer = window.setTimeout(() => {
+      try {
+        if (journalEntry.trim() || journalTitle.trim()) {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: journalTitle, entry: journalEntry, mood }));
+        }
+      } catch {
+        // Storage full or blocked: auto-save quietly does nothing.
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [journalEntry, journalTitle, mood, prefs.autoSave]);
+
+  const discardDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing to remove */ }
+  };
 
   const prompts: Prompt[] = [
     { text: "What made you smile today?", emoji: "😊", category: "positive" },
@@ -83,7 +189,7 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
   useEffect(() => {
     setHideExtra(true);
     return () => setHideExtra(false);
-  })
+  }, [setHideExtra])
 
   // Count words and characters
   useEffect(() => {
@@ -153,6 +259,9 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
     setJournalEntry('');
     setAddedPrompts([]);
     setJournalTitle('');
+    setMood('');
+    discardDraft();
+    setRestoredDraft(false);
   };
 
   /**
@@ -296,6 +405,7 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
           // can hold several prompts the user pulled in, so we join them
           // rather than dropping all but the first.
           prompt_used: addedPrompts.map((p) => p.text).join(' | '),
+          ...(mood ? { mood } : {}),
         })
       });
 
@@ -334,6 +444,7 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
 
       attachments.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setAttachments([]);
+      discardDraft();
       clearEntry();
       setActiveTab('Journal');
     } catch (err) {
@@ -765,6 +876,54 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
           maxWidth: isMobile ? '100%' : '800px',
           margin: '0 auto'
         }}>
+          {/* A draft that Auto-Save kept from last time. */}
+          {restoredDraft && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
+              marginBottom: '12px', padding: '10px 14px', borderRadius: '10px',
+              background: theme.surface, border: `1px solid ${theme.secondary}66`,
+              fontSize: '13px', color: theme.text,
+            }}>
+              <span>Picked up where you left off — your unsaved draft is back.</span>
+              <button
+                onClick={clearEntry}
+                style={{ background: 'none', border: 'none', color: theme.secondary, cursor: 'pointer', textDecoration: 'underline', fontSize: '13px', padding: 0 }}
+              >
+                Start fresh
+              </button>
+            </div>
+          )}
+
+          {/* Mood Tracking (Settings → Journaling). Entries written here
+              used to have no mood at all, which left the Journal's mood
+              filter with nothing to find. Optional: tap again to clear. */}
+          {prefs.moodTracking !== false && !showPreview && (
+            <div role="radiogroup" aria-label="How are you feeling?" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+              {MOODS.map((option) => {
+                const selected = mood === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setMood(selected ? '' : option.value)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      background: selected ? theme.accent + '25' : 'transparent',
+                      color: selected ? theme.accent : theme.text,
+                      border: `1px solid ${selected ? theme.accent : theme.border}`,
+                    }}
+                  >
+                    {option.emoji} {option.value}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {showPreview ? (
             <div style={{
               backgroundColor: theme.surface,
@@ -1005,7 +1164,7 @@ const CreateJournal = ({ theme, isMobile, setHideExtra, setActiveTab }: Props) =
 
             <button
               onClick={saveEntry}
-              disabled={!journalEntry.trim() || isSaving}
+              disabled={(!journalEntry.trim() && attachments.length === 0) || isSaving}
               className='!text-sm flex !border-none items-center justify-center gap-2 cursor-pointer !rounded-2xl md:min-w-[100px]'
               style={{
                 backgroundColor: journalEntry.trim() ? theme.accent : theme.border,

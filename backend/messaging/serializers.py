@@ -155,6 +155,13 @@ def serialize_conversation(conversation, viewer, request=None):
         # Never inferred; only ever set by a live typing event.
         "typing": False,
         "isDirect": conversation.is_direct,
+        # Whether *you* muted this thread — drives Mute/Unmute in the
+        # conversation menu. Read from the prefetched participants, so the
+        # list doesn't cost a query per row.
+        "muted": next(
+            (row.is_muted for row in conversation.participants.all() if row.user_id == viewer.id),
+            False,
+        ),
     })
     return data
 

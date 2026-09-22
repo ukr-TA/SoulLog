@@ -15,8 +15,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Camera, MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, MoreHorizontal, ArrowLeft } from 'lucide-react';
+import { Camera, MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft } from 'lucide-react';
 import { ApiError, api, get, post } from './api';
+import { profileShare, shareOrCopy } from './links';
 import type { Theme } from './theme';
 import type {
   Achievement,
@@ -27,6 +28,17 @@ import type {
   Paginated,
 } from './types';
 
+/** The app's twelve moods — the same list the server accepts. */
+const MOODS: { value: string; emoji: string }[] = [
+  { value: 'Happy', emoji: '😊' }, { value: 'Calm', emoji: '😌' }, { value: 'Grateful', emoji: '🙏' },
+  { value: 'Hopeful', emoji: '🌱' }, { value: 'Content', emoji: '🙂' }, { value: 'Excited', emoji: '🤩' },
+  { value: 'Anxious', emoji: '😰' }, { value: 'Stressed', emoji: '😣' }, { value: 'Sad', emoji: '😢' },
+  { value: 'Lonely', emoji: '😔' }, { value: 'Frustrated', emoji: '😤' }, { value: 'Angry', emoji: '😠' },
+];
+
+/** Where the quick-entry draft lives on this device. See saveDraft below. */
+const DRAFT_KEY = 'soullog.profileEntryDraft';
+
 interface ProfilePageProps {
   theme: Theme;
   darkMode?: boolean;
@@ -36,6 +48,12 @@ interface ProfilePageProps {
    */
   setActiveTab: (tab: string) => void;
   setHideExtra: (hide: boolean) => void;
+  /** Open the profile form as an editor, returning here when done. */
+  onEditProfile?: () => void;
+  /** Open one journal entry in the Journal screen, for editing or sharing. */
+  onOpenJournalEntry?: (entryId: number, action: 'edit' | 'share') => void;
+  /** Open Community on the Souls (people) tab. */
+  onFindConnections?: () => void;
 }
 
 /** One card in "My Top Journals", built from the user's own entries. */
@@ -46,7 +64,7 @@ interface TopJournal {
   date: string;
   emoji: string;
   tags: string[];
-  interactions: { views: number; reactions: number; comments: number };
+  interactions: { reactions: number; comments: number };
   isHighlighted: boolean;
 }
 
@@ -140,15 +158,87 @@ interface StatCardProps {
  * earned; this screen only shows it.
  */
 
-const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePageProps) => {
+const EMPTY_ENTRY = { title: '', content: '', tags: '', mood: '', visibility: 'private' };
+
+const ProfileCard = ({ children, className = "", theme }: { children?: React.ReactNode; className?: string; theme: Theme }) => (
+  <div 
+    className={`rounded-xl shadow-lg border p-5 transition-all duration-300 ${className} text-left`}
+    style={{ 
+      backgroundColor: theme.surface, 
+      borderColor: theme.border,
+      color: theme.text
+    }}
+  >
+    {children}
+  </div>
+);
+
+const Button = ({ children, variant = "primary", size = "md", className = "", onClick, theme }: ButtonProps & { theme: Theme }) => {
+  const variants: Record<ButtonVariant, React.CSSProperties> = {
+    primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
+    secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
+    outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
+    ghost: { backgroundColor: 'transparent', color: theme.text }
+  };
+
+  const sizes: Record<ButtonSize, string> = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2'
+  };
+
+  return (
+    <button 
+      className={`rounded-lg flex justify-center items-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className}`}
+      style={variants[variant]}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+};
+
+const StatCard = ({ icon, label, value, color, bgColor, onClick }: StatCardProps) => (
+  <div 
+    className="text-center p-2 rounded-lg transition-all duration-300 hover:scale-101 cursor-pointer flex flex-col justify-center gap-1"
+    style={{ 
+      backgroundColor: bgColor, 
+      border: `1px solid ${color}30`
+    }}
+    onClick={onClick}
+  >
+    <div className="flex items-center justify-center mb-1">
+      {typeof icon === 'string' ? (
+        <span className="w-4 h-4">{icon}</span>
+      ) : (
+        React.cloneElement(icon, { className: "w-4 h-4", style: { color } })
+      )}
+    </div>
+    <p className="font-bold text-sm" style={{ color }}>{value}</p>
+    <p className="text-xs opacity-75">{label}</p>
+  </div>
+);
+
+const SoulLogOwnProfile = ({
+  theme,
+  setActiveTab,
+  setHideExtra,
+  onEditProfile,
+  onOpenJournalEntry,
+  onFindConnections,
+}: ProfilePageProps) => {
   const [showJournalModal, setShowJournalModal] = useState(false);
-  const [journalEntry, setJournalEntry] = useState({
-    title: '',
-    content: '',
-    emoji: '📝',
-    tags: '',
-    mood: 'neutral'
-  });
+  // The quick-entry form. `mood` and `visibility` used to be a decorative
+  // emoji picker and an unbound Public/Private switch — neither was ever
+  // sent, so every entry saved as private and moodless whatever you chose.
+  const [journalEntry, setJournalEntry] = useState(EMPTY_ENTRY);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // About Me and Interests edit in place.
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [aboutDraft, setAboutDraft] = useState('');
+  const [editingInterests, setEditingInterests] = useState(false);
+  const [interestsDraft, setInterestsDraft] = useState('');
+  const [savingField, setSavingField] = useState(false);
 
   const [userData, setUserData] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
@@ -170,9 +260,11 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
 
       // "Top journals" are the user's own most-engaged shared entries,
       // not two invented ones. Private entries are excluded because the
-      // engagement numbers beside them would always be zero.
+      // engagement numbers beside them would always be zero. Ranked by
+      // hearts and comments, so "top" means top rather than "newest".
       const shared: TopJournal[] = entries
         .filter((entry) => entry.visibility !== 'private')
+        .sort((a, b) => ((b.likes ?? 0) + (b.comments ?? 0)) - ((a.likes ?? 0) + (a.comments ?? 0)))
         .slice(0, 5)
         .map((entry) => ({
           id: entry.id,
@@ -181,14 +273,16 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
           date: new Date(entry.created_at).toLocaleDateString(),
           emoji: entry.entry_type === 'voice' ? '🎙️' : entry.entry_type === 'photo' ? '📷' : '📝',
           tags: entry.tags || [],
-          interactions: { views: 0, reactions: 0, comments: 0 },
+          interactions: { reactions: entry.likes ?? 0, comments: entry.comments ?? 0 },
           isHighlighted: false,
         }));
 
       setUserData({
         name: profile.name || profile.username,
         username: profile.username,
-        title: profile.current_focus || '',
+        // The line under your name: your tagline, or your current focus
+        // if you haven't written one.
+        title: profile.tagline || profile.current_focus || '',
         email: profile.email || '',
         phone: profile.phone || '',
         location: profile.location || '',
@@ -229,6 +323,85 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
     load();
   }, [load]);
 
+  /** Briefly confirm something happened, then clear. */
+  const flash = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(null), 3000);
+  };
+
+  /**
+   * Share Profile.
+   *
+   * SoulLog has no public web page per profile to link to, so what is
+   * shared is how to find you: your @username. On a phone this opens the
+   * system share sheet; elsewhere it is copied to the clipboard. Either
+   * way the button now says what it did.
+   */
+  const handleShareProfile = async () => {
+    const result = await shareOrCopy(profileShare(userData.username, userData.name));
+    if (result === 'copied') flash('Profile link copied — anyone who opens it lands on your profile.');
+    else if (result === 'failed') flash(`Your username is @${userData.username} — share it so people can find you.`);
+  };
+
+  /** Save one or more profile fields and reload. */
+  const saveProfileFields = async (fields: Record<string, string | string[]>) => {
+    setSavingField(true);
+    try {
+      await api('/profile/', { method: 'PATCH', body: fields });
+      await load();
+      return true;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'That did not save.');
+      return false;
+    } finally {
+      setSavingField(false);
+    }
+  };
+
+  const saveAbout = async () => {
+    if (await saveProfileFields({ bio: aboutDraft.trim() })) {
+      setEditingAbout(false);
+      flash('About Me updated.');
+    }
+  };
+
+  const saveInterests = async () => {
+    const interests = interestsDraft.split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (await saveProfileFields({ interests })) {
+      setEditingInterests(false);
+      flash('Interests updated.');
+    }
+  };
+
+  /**
+   * Drafts, kept on this device.
+   *
+   * "Save as Draft" was a button with no handler. A draft now means what
+   * it says: the unfinished entry is kept on this device, the form closes,
+   * and it's all there again the next time you open it. It never leaves
+   * the device until you actually save the entry — which is the point of
+   * a draft in a private journal.
+   */
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(journalEntry));
+      setShowJournalModal(false);
+      flash('Draft kept on this device. Open "Write Journal" to pick it up.');
+    } catch {
+      setError('This browser would not keep the draft. Copy your text somewhere safe.');
+    }
+  };
+
+  const openJournalModal = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) setJournalEntry({ ...EMPTY_ENTRY, ...JSON.parse(saved) });
+    } catch {
+      // An unreadable draft is not worth blocking a new entry over.
+    }
+    setShowJournalModal(true);
+  };
+
   const handleSaveJournal = async () => {
     if (!journalEntry.title || !journalEntry.content) {
       setError('A title and some words, please.');
@@ -240,13 +413,17 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
       await post('/journal/', {
         title: journalEntry.title,
         content: journalEntry.content,
+        mood: journalEntry.mood,
+        visibility: journalEntry.visibility,
         tags: journalEntry.tags
           ? journalEntry.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
           : [],
       });
       setShowJournalModal(false);
-      setJournalEntry({ title: '', content: '', emoji: '📝', tags: '', mood: 'neutral' });
+      setJournalEntry(EMPTY_ENTRY);
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing to clear */ }
       setError(null);
+      flash('Entry saved.');
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'That entry did not save.');
@@ -285,73 +462,23 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
     input.click();
   };
 
-  const StatusBanner = () =>
-    error || loading || saving ? (
+  const renderStatusBanner = () =>
+    error || loading || saving || notice ? (
       <div
+        role="status"
         className="mx-4 mb-2 rounded-lg px-3 py-2 text-sm"
-        style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, color: theme.text }}
+        style={{
+          backgroundColor: theme.surface,
+          border: `1px solid ${notice && !error ? theme.secondary : theme.border}`,
+          color: theme.text,
+        }}
       >
-        {error || (saving ? 'Saving…' : 'Loading your profile…')}
+        {error || (saving ? 'Saving…' : notice || 'Loading your profile…')}
       </div>
     ) : null;
 
-  const ProfileCard = ({ children, className = "" }: { children?: React.ReactNode; className?: string }) => (
-    <div 
-      className={`rounded-xl shadow-lg border p-5 transition-all duration-300 ${className} text-left`}
-      style={{ 
-        backgroundColor: theme.surface, 
-        borderColor: theme.border,
-        color: theme.text
-      }}
-    >
-      {children}
-    </div>
-  );
 
-  const Button = ({ children, variant = "primary", size = "md", className = "", onClick }: ButtonProps) => {
-    const variants: Record<ButtonVariant, React.CSSProperties> = {
-      primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
-      secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
-      outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
-      ghost: { backgroundColor: 'transparent', color: theme.text }
-    };
 
-    const sizes: Record<ButtonSize, string> = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2'
-    };
-
-    return (
-      <button 
-        className={`rounded-lg flex justify-center items-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className}`}
-        style={variants[variant]}
-        onClick={onClick}
-      >
-        {children}
-      </button>
-    );
-  };
-
-  const StatCard = ({ icon, label, value, color, bgColor, onClick }: StatCardProps) => (
-    <div 
-      className="text-center p-2 rounded-lg transition-all duration-300 hover:scale-101 cursor-pointer flex flex-col justify-center gap-1"
-      style={{ 
-        backgroundColor: bgColor, 
-        border: `1px solid ${color}30`
-      }}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-center mb-1">
-        {typeof icon === 'string' ? (
-          <span className="w-4 h-4">{icon}</span>
-        ) : (
-          React.cloneElement(icon, { className: "w-4 h-4", style: { color } })
-        )}
-      </div>
-      <p className="font-bold text-sm" style={{ color }}>{value}</p>
-      <p className="text-xs opacity-75">{label}</p>
-    </div>
-  );
 
   useEffect(() => {
     setHideExtra(true);
@@ -367,14 +494,14 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
       <div className='header px-3 py-4' style={{backgroundColor: theme.background}}>
         <ArrowLeft className='opacity-70 w-5 h-5 cursor-pointer' onClick={() => setActiveTab("Accounts")} />
       </div>
-      <StatusBanner />
+      {renderStatusBanner()}
       <div className="mx-auto p-4">
         
         <div className="grid grid-cols-1 gap-8">
           {/* Main Content */}
           <div className="space-y-6">
             {/* Hero Section */}
-            <ProfileCard>
+            <ProfileCard theme={theme}>
               <div className="relative">
                 {/* Cover Image */}
                 <div 
@@ -385,7 +512,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                     backgroundPosition: 'center'
                   }}
                 >
-                  <Button variant="outline" size="sm" className="absolute top-2 right-2 bg-black bg-opacity-30 text-white !text-xs" onClick={() => handleImageUpload('cover')}>
+                  <Button theme={theme} variant="outline" size="sm" className="absolute top-2 right-2 bg-black bg-opacity-30 text-white !text-xs" onClick={() => handleImageUpload('cover')}>
                     <Camera className="w-3 h-3" />
                     Edit
                   </Button>
@@ -456,11 +583,11 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                     </div>
 
                     <div className='flex gap-2 w-full'>
-                      <Button className="flex justify-center items-center gap-2 w-full" variant="outline" size="sm" onClick={() => {}}>
+                      <Button theme={theme} className="flex justify-center items-center gap-2 w-full" variant="outline" size="sm" onClick={() => onEditProfile?.()}>
                         <Edit3 className="w-4 h-4 mr-2" />
                         Edit Profile
                       </Button>
-                      <Button className="w-full" variant="outline">
+                      <Button theme={theme} className="w-full" variant="outline" onClick={handleShareProfile}>
                         <Share2 className="w-4 h-4 mr-2" />
                         Share Profile
                       </Button>
@@ -470,15 +597,15 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
 
                   {/* Action Buttons */}
                   <div className="grid grid-cols-1 !gap-3 md:!grid-cols-3">
-                    <Button variant="primary" onClick={() => setShowJournalModal(true)}>
+                    <Button theme={theme} variant="primary" onClick={openJournalModal}>
                       <BookOpen className="w-4 h-4 mr-2" />
                       Write Journal
                     </Button>
-                    <Button variant="secondary">
+                    <Button theme={theme} variant="secondary" onClick={() => setActiveTab('Insights')}>
                       <TrendingUp className="w-4 h-4 mr-2" />
                       View Analytics
                     </Button>
-                    <Button variant="outline">
+                    <Button theme={theme} variant="outline" onClick={() => (onFindConnections ? onFindConnections() : setActiveTab('Community'))}>
                       <TrendingUp className="w-4 h-4 mr-2" />
                       Find Connections
                     </Button>
@@ -488,21 +615,42 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
             </ProfileCard>
 
             {/* About Section */}
-            <ProfileCard className="flex flex-col gap-5">
+            <ProfileCard theme={theme} className="flex flex-col gap-5">
               <div className="flex items-center justify-between">
                 <p className="text-xl font-semibold flex items-center gap-2">
                   <Target className="w-6 h-6" style={{ color: theme.accent }} />
                   About Me
                 </p>
-                <Button variant="ghost" size="sm" onClick={() => {}}>
-                  <Edit3 className="w-4 h-4" />
-                </Button>
+                {!editingAbout && (
+                  <Button theme={theme} variant="ghost" size="sm" onClick={() => { setAboutDraft(userData.about); setEditingAbout(true); }}>
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
               
               <div className="relative p-6 rounded-xl" style={{ backgroundColor: `${theme.accent}10`, border: `1px solid ${theme.accent}20` }}>
-                <p className="leading-relaxed text-md">
-                  {userData.about}
-                </p>
+                {editingAbout ? (
+                  <div className="flex flex-col gap-3">
+                    <textarea
+                      autoFocus
+                      value={aboutDraft}
+                      onChange={(e) => setAboutDraft(e.target.value)}
+                      rows={4}
+                      maxLength={2000}
+                      placeholder="A few lines about you and what you're working on."
+                      className="w-full p-3 rounded-lg border resize-none text-sm"
+                      style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button theme={theme} variant="outline" size="sm" onClick={() => setEditingAbout(false)}>Cancel</Button>
+                      <Button theme={theme} variant="primary" size="sm" onClick={saveAbout}>{savingField ? 'Saving…' : 'Save'}</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="leading-relaxed text-md">
+                    {userData.about || <span className="opacity-60">Nothing here yet — tap the pencil to add a few lines about you.</span>}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 !gap-5">
@@ -531,14 +679,14 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
             </ProfileCard>
 
             {/* My Top Journals */}
-            <ProfileCard>
+            <ProfileCard theme={theme}>
               <div className="flex items-center justify-between mb-5">
 
                 <h3 className="font-semibold mb-3 text-lg flex items-center gap-2">
                   <BookOpen className="w-6 h-6" style={{ color: theme.secondary }} />
                   My Top Journals
                 </h3>
-                <Button variant="outline" size="sm">
+                <Button theme={theme} variant="outline" size="sm" onClick={() => setActiveTab('Journal')}>
                   Manage Posts
                 </Button>
               </div>
@@ -572,9 +720,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                           <span className="text-sm opacity-60">{journal.date}</span>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="opacity-50 hover:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+
                     </div>
                     
                     <p className="text-base leading-relaxed mb-4 opacity-90">{journal.excerpt}</p>
@@ -584,7 +730,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                         {journal.tags.map((tag) => (
                           <span 
                             key={tag}
-                            className="px-3 py-1 rounded-full text-sm font-medium transition-all hover:scale-105 cursor-pointer"
+                            className="px-3 py-1 rounded-full text-sm font-medium transition-all"
                             style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
                           >
                             #{tag}
@@ -597,10 +743,6 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                     <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: theme.border }}>
                       <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4 opacity-75" />
-                          <span className="font-medium">{journal.interactions.views.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
                           <Heart className="w-4 h-4 opacity-75" style={{ color: theme.accent }} />
                           <span className="font-medium">{journal.interactions.reactions}</span>
                         </div>
@@ -611,10 +753,10 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button theme={theme} variant="outline" size="sm" onClick={() => onOpenJournalEntry ? onOpenJournalEntry(journal.id, 'edit') : setActiveTab('Journal')}>
                           <Edit3 className="w-4 h-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button theme={theme} variant="outline" size="sm" onClick={() => onOpenJournalEntry ? onOpenJournalEntry(journal.id, 'share') : setActiveTab('Journal')}>
                           <Share2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -628,7 +770,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Journey Stats */}
-            <ProfileCard>
+            <ProfileCard theme={theme}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" style={{ color: theme.accent }} />
                 My Journey Stats
@@ -692,7 +834,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
             </ProfileCard>
 
             {/* Recent Achievements */}
-            <ProfileCard>
+            <ProfileCard theme={theme}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
                 <Award className="w-5 h-5" style={{ color: theme.accent }} />
                 Recent Achievements
@@ -708,7 +850,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                   <div 
                     key={achievement.slug}
                     title={achievement.description}
-                    className="flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-105 cursor-pointer"
+                    className="flex items-center gap-3 p-3 rounded-lg transition-all"
                     style={{ backgroundColor: `${theme.accent}10` }}
                   >
                     <span className="text-2xl">{achievement.icon}</span>
@@ -753,7 +895,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
             </ProfileCard>
 
             {/* Favorite Topics */}
-            <ProfileCard>
+            <ProfileCard theme={theme}>
               <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
                 <Sparkles className="w-5 h-5" style={{ color: theme.accent }} />
                 My Interests
@@ -762,7 +904,7 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                 {userData.favoriteTopics.map((topic) => (
                   <span 
                     key={topic}
-                    className="px-3 py-2 rounded-full text-sm font-medium cursor-pointer transition-all hover:scale-110"
+                    className="px-3 py-2 rounded-full text-sm font-medium transition-all"
                     style={{ 
                       backgroundColor: `${theme.secondary}20`, 
                       color: theme.secondary,
@@ -773,10 +915,34 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                   </span>
                 ))}
               </div>
-              <Button variant="outline" size="sm" className="w-full mt-4 flex justify-center items-center gap-2" onClick={() => {}}>
-                <Edit3 className="w-4 h-4 mr-2" />
-                Edit Interests
-              </Button>
+              {editingInterests ? (
+                <div className="flex flex-col gap-2 mt-4">
+                  <input
+                    autoFocus
+                    value={interestsDraft}
+                    onChange={(e) => setInterestsDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveInterests(); }}
+                    placeholder="mindfulness, sleep, gratitude"
+                    className="w-full p-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+                  />
+                  <p className="text-xs opacity-60">Separate interests with commas.</p>
+                  <div className="flex gap-2 justify-end">
+                    <Button theme={theme} variant="outline" size="sm" onClick={() => setEditingInterests(false)}>Cancel</Button>
+                    <Button theme={theme} variant="primary" size="sm" onClick={saveInterests}>{savingField ? 'Saving…' : 'Save'}</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button theme={theme}
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-4 flex justify-center items-center gap-2"
+                  onClick={() => { setInterestsDraft(userData.favoriteTopics.join(', ')); setEditingInterests(true); }}
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  {userData.favoriteTopics.length ? 'Edit Interests' : 'Add Interests'}
+                </Button>
+              )}
             </ProfileCard>
           </div>
         </div>
@@ -812,25 +978,19 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
                 <div>
                   <label className="block text-sm font-medium mb-2">Mood</label>
                   <select 
-                    value={journalEntry.emoji}
-                    onChange={(e) => setJournalEntry({...journalEntry, emoji: e.target.value})}
-                    className="w-full p-3 text-2xl text-center rounded-lg border transition-all"
+                    value={journalEntry.mood}
+                    onChange={(e) => setJournalEntry({ ...journalEntry, mood: e.target.value })}
+                    className="w-full p-3 rounded-lg border transition-all"
                     style={{ 
                       backgroundColor: theme.background, 
                       borderColor: theme.border,
                       color: theme.text
                     }}
                   >
-                    <option value="📝">📝 Reflective</option>
-                    <option value="😊">😊 Happy</option>
-                    <option value="🌅">🌅 Peaceful</option>
-                    <option value="💭">💭 Thoughtful</option>
-                    <option value="🌱">🌱 Growing</option>
-                    <option value="⭐">⭐ Inspired</option>
-                    <option value="🔥">🔥 Motivated</option>
-                    <option value="🧠">🧠 Learning</option>
-                    <option value="❤️">❤️ Grateful</option>
-                    <option value="🌈">🌈 Hopeful</option>
+                    <option value="">— none —</option>
+                    {MOODS.map((mood) => (
+                      <option key={mood.value} value={mood.value}>{mood.emoji} {mood.value}</option>
+                    ))}
                   </select>
                 </div>
                 
@@ -891,33 +1051,40 @@ const SoulLogOwnProfile = ({ theme, setActiveTab, setHideExtra }: ProfilePagePro
               {/* Privacy Settings */}
               <div className="p-4 rounded-lg" style={{ backgroundColor: `${theme.accent}10`, border: `1px solid ${theme.accent}20` }}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">Privacy Settings</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm opacity-75">Public</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                    <span className="text-sm opacity-75">Private</span>
-                  </div>
+                  <span className="font-medium">Who can see this</span>
+                  <select
+                    value={journalEntry.visibility}
+                    onChange={(e) => setJournalEntry({ ...journalEntry, visibility: e.target.value })}
+                    className="px-3 py-1 rounded-lg border text-sm"
+                    style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+                  >
+                    <option value="private">Only me</option>
+                    <option value="connections">My connections</option>
+                    <option value="community">Everyone on SoulLog</option>
+                  </select>
                 </div>
+                {/* The old switch here said "Public entries can be seen by
+                    your followers" and wasn't connected to anything. These
+                    are the app's three real levels, and the choice is saved. */}
                 <p className="text-sm opacity-75">
-                  Public entries can be seen by your followers and may appear in community feeds.
+                  {journalEntry.visibility === 'private' && 'Private. Nobody else can see this entry.'}
+                  {journalEntry.visibility === 'connections' && 'Visible to people you have connected with. Following you is not enough.'}
+                  {journalEntry.visibility === 'community' && 'Visible to anyone signed in to SoulLog, who can also comment unless you turn comments off.'}
                 </p>
               </div>
             </div>
 
             {/* Footer */}
             <div className="p-6 border-t flex gap-3 justify-end" style={{ borderColor: theme.border }}>
-              <Button variant="outline" onClick={() => setShowJournalModal(false)}>
+              <Button theme={theme} variant="outline" onClick={() => setShowJournalModal(false)}>
                 Cancel
               </Button>
-              <Button variant="secondary">
+              <Button theme={theme} variant="secondary" onClick={saveDraft}>
                 Save as Draft
               </Button>
-              <Button variant="primary" onClick={handleSaveJournal}>
+              <Button theme={theme} variant="primary" onClick={handleSaveJournal}>
                 <BookOpen className="w-4 h-4 mr-2" />
-                Publish Entry
+                {journalEntry.visibility === 'private' ? 'Save Entry' : 'Publish Entry'}
               </Button>
             </div>
           </div>

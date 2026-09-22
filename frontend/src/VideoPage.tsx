@@ -13,9 +13,9 @@
  * play button that does nothing when pressed.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Clock, Eye, Send } from 'lucide-react';
-import { ApiError, get, patch, post } from './api';
+import { ApiError, del, get, patch, post } from './api';
 import type { LibraryComment, Theme } from './types';
 import { EditedMark, InlineEditor } from './ui';
 
@@ -64,6 +64,26 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({});
 
   const [videos, setVideos] = useState<LibraryItem[]>([]);
+  // The "…" menu on a card you uploaded. It was drawn on every card and
+  // did nothing; like, save and share already sit on the card, so the only
+  // action it adds is deleting your own upload, asked twice.
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const deleteItem = async (videoId: number) => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      await del(`/content/${videoId}/`);
+      setVideos((rows) => rows.filter((row) => row.id !== videoId));
+      setMenuFor(null);
+      setConfirmDelete(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete that.');
+    }
+  };
   const [categories, setCategories] = useState<{ id: string; label: string; icon: string }[]>([
     { id: 'all', label: 'All Videos', icon: '🎬' },
   ]);
@@ -259,7 +279,10 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
     }
   };
 
-  const VideoCard = ({ video }: { video: LibraryItem }) => (
+  // Called as a function rather than rendered as a component: declared
+  // inside this screen, a component is re-created on every render, and
+  // React would rebuild everything in it — losing focus and local state.
+  const renderVideoCard = ({ video }: { video: LibraryItem }) => (
     <div 
       className="text-left overflow-hidden shadow-lg transition-all duration-300 mx-2"
       style={{ 
@@ -284,9 +307,34 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
             <span>{video.views.toLocaleString()} views</span>
           </div>
         </div>
-        <button className="p-2 rounded-lg hover:bg-opacity-10 hover:bg-white">
-          <MoreHorizontal size={16} style={{ color: theme.text }} />
-        </button>
+        {video.isOwn && (
+          <div className="relative">
+            <button
+              className="p-2 rounded-lg hover:bg-opacity-10 hover:bg-white"
+              aria-label="Options for your upload"
+              aria-expanded={menuFor === video.id}
+              onClick={() => { setMenuFor(menuFor === video.id ? null : video.id); setConfirmDelete(false); }}
+            >
+              <MoreHorizontal size={16} style={{ color: theme.text }} />
+            </button>
+            {menuFor === video.id && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg overflow-hidden text-sm"
+                style={{ background: theme.surface, border: `1px solid ${theme.border}`, minWidth: '200px' }}
+              >
+                <button
+                  role="menuitem"
+                  className="w-full text-left px-4 py-3"
+                  style={{ color: theme.error, background: 'transparent' }}
+                  onClick={() => deleteItem(video.id)}
+                >
+                  {confirmDelete ? 'Tap again to delete for good' : 'Delete this upload'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Video Title */}
@@ -607,7 +655,7 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
       <div className="max-w-4xl mx-auto space-y-2">
         {filteredVideos.length > 0 ? (
           filteredVideos.map((video) => (
-            <VideoCard key={video.id} video={video} />
+            <Fragment key={video.id}>{renderVideoCard({ video })}</Fragment>
           ))
         ) : (
           <div className="text-center py-16">

@@ -80,6 +80,7 @@ export interface MyProfile extends Partial<PublicUser> {
   email?: string;
   phone?: string | null;
   bio?: string;
+  tagline?: string;
   location?: string;
   website?: string;
   joined?: string;
@@ -104,6 +105,7 @@ export interface PublicProfile extends Partial<PublicUser> {
   username: string;
   name: string;
   bio?: string;
+  tagline?: string;
   location?: string;
   joined?: string;
   interests?: string[];

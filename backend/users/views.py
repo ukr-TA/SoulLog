@@ -94,12 +94,22 @@ class PasswordResetRequestView(APIView):
 
         uid, token = make_reset_token(user)
         from django.core.mail import send_mail
+        from django.conf import settings as django_settings
+
+        # A link that opens the reset screen with both codes filled in.
+        # The email used to contain only the raw uid and token and ask the
+        # user to copy them into the app by hand. The codes are still
+        # included, for the phone app, where a web link can't open it.
+        link = f"{django_settings.FRONTEND_BASE_URL.rstrip('/')}/#/reset-password/{uid}/{token}"
         send_mail(
             subject="Reset your SoulLog password",
-            # In production this becomes a clickable link to the app;
-            # locally (console email backend) it's printed to the server
-            # log so the reset can be completed by hand during testing.
-            message=f"Use this uid and token in the SoulLog app to reset your password.\nuid: {uid}\ntoken: {token}",
+            message=(
+                "Someone (hopefully you) asked to reset the password for your SoulLog account.\n\n"
+                f"Choose a new password here:\n{link}\n\n"
+                "Using the SoulLog phone app? Enter these on the reset screen instead:\n"
+                f"uid: {uid}\ntoken: {token}\n\n"
+                "If you didn't ask for this, you can ignore this email — your password won't change."
+            ),
             from_email=None,
             recipient_list=[user.email],
             fail_silently=True,

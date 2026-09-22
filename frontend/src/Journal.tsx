@@ -16,20 +16,17 @@ interface JournalPageProps {
   darkMode?: boolean;
   setBackPage: React.Dispatch<React.SetStateAction<string>>;
   setActiveTab: React.Dispatch<React.SetStateAction<string>>;
+  /**
+   * Open one entry straight into its edit or share dialog — used by the
+   * edit and share buttons on your profile's Top Journals. The entry is
+   * fetched by id, so it works even when it isn't on the first page.
+   */
+  focus?: { id: number; action: 'edit' | 'share' } | null;
+  onFocusHandled?: () => void;
 }
 
-/**
- * An entry as this screen reads it.
- *
- * `sharedWith` and `time` are read by the markup below but are not fields
- * the journal API sends, so they are optional here rather than asserted
- * into existence: the code that reads them already handles the value
- * being absent, which is what it has always been.
- */
-type JournalEntryView = JournalEntry & {
-  sharedWith?: string;
-  time?: string;
-};
+/** An entry as this screen reads it — exactly what the API sends. */
+type JournalEntryView = JournalEntry;
 
 /** The edit modal's form, which holds tags as the comma-separated text the input shows. */
 interface EditForm {
@@ -85,7 +82,7 @@ const problemMessage = (problem: unknown): string | undefined => {
   return undefined;
 };
 
-const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPageProps) => {
+const JournalHistoryPage = ({ theme, setBackPage, setActiveTab, focus, onFocusHandled } : JournalPageProps) => {
   const [filterMood, setFilterMood] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,6 +119,10 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
   }, []);
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  // Problems inside the comments dialog are shown there, not in an alert().
+  const [commentError, setCommentError] = useState('');
+  // A one-line problem shown above the list, e.g. a failed delete.
+  const [pageNotice, setPageNotice] = useState('');
   const [replyingTo, setReplyingTo] = useState<JournalComment | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({
     title: '',
@@ -246,6 +247,28 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
     setShowEditModal(true);
   };
 
+  useEffect(() => {
+    if (!focus) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { value: access_token } = await Preferences.get({ key: 'access_token' });
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/journal/${focus.id}/`, {
+          headers: { 'Authorization': `Bearer ${access_token}` }
+        });
+        if (!response.ok || cancelled) return;
+        const entry: JournalEntryView = await response.json();
+        if (focus.action === 'edit') handleEdit(entry);
+        else handleShare(entry);
+      } finally {
+        if (!cancelled) onFocusHandled?.();
+      }
+    })();
+    return () => { cancelled = true; };
+    // Runs when a new focus request arrives, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
+
   const fetchComments = async (entryId: number) => {
     setIsLoadingComments(true);
     const { value: access_token } = await Preferences.get({ key: 'access_token' });
@@ -291,14 +314,17 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
       });
       if (response.ok) {
         await fetchComments(commentsEntry.id);
+        // Cleared only once it's posted. It used to be cleared whatever
+        // happened, so a failed post threw away what you had written.
+        setNewComment('');
+        setCommentError('');
       } else {
-        alert("Couldn't post that comment. Please try again.");
+        setCommentError("Couldn't post that comment. Your text is still here — try again.");
       }
     } catch {
-      alert("Could not reach the server. Check your connection and try again.");
+      setCommentError("Couldn't reach the server. Your text is still here — try again.");
     }
 
-    setNewComment('');
     setReplyingTo(null);
   };
 
@@ -329,9 +355,12 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
       );
       if (response.ok || response.status === 204) {
         await fetchComments(commentsEntry.id);
+        setCommentError('');
+      } else {
+        setCommentError("Couldn't delete that comment. Try again.");
       }
     } catch {
-      alert("Could not reach the server. Check your connection and try again.");
+      setCommentError("Couldn't reach the server. Check your connection and try again.");
     }
   };
 
@@ -445,10 +474,10 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
         setTotalEntries((prev) => Math.max(prev - 1, 0));
         getStats();
       } else {
-        alert("Something went wrong while deleting this entry. Please try again.");
+        setPageNotice("Couldn't delete that entry. Please try again.");
       }
     } catch {
-      alert("Could not reach the server. Check your connection and try again.");
+      setPageNotice("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setDeletingId(null);
     }
@@ -623,7 +652,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
         {/* Journal Header */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{ fontSize: '28px', marginBottom: '8px', color: theme.accent }}>
-            Jour Journal
+            Your Journal
           </div>
           <div style={{ fontSize: '16px', color: theme.mutedText }}>
             Personal reflection space
@@ -764,6 +793,16 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
 
         {/* Journal Entries */}
         <div className='flex flex-col gap-2 text-left'>
+          {pageNotice && (
+            <div role="alert" style={{
+              display: 'flex', justifyContent: 'space-between', gap: '12px',
+              padding: '10px 14px', borderRadius: '10px', fontSize: '13px',
+              background: theme.surface, border: `1px solid ${theme.error}66`, color: theme.text,
+            }}>
+              <span>{pageNotice}</span>
+              <button onClick={() => setPageNotice('')} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: theme.text, cursor: 'pointer', padding: 0 }}>✕</button>
+            </div>
+          )}
           {isLoadingList ? (
             <div style={{
               background: theme.cardBg,
@@ -822,7 +861,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                  cursor: 'pointer'
+                  
                 }}
               >
                 {/* Entry Header */}
@@ -863,7 +902,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
                     <span>
                       {getTimeAgo(entry?.created_at)} • {new Date(entry?.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    { entry?.shared ? (entry.sharedWith === 'community' ? <IoEarthSharp size={16} /> : <FaUserFriends size={16} />) : <LuLock /> }
+                    { entry.visibility === 'community' ? <IoEarthSharp size={16} title="Everyone on SoulLog" /> : entry.visibility === 'connections' ? <FaUserFriends size={16} title="Your connections" /> : <LuLock title="Only you" /> }
                   </div>
                 </div>
 
@@ -1388,6 +1427,12 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
                   </div>
                 )}
 
+                {commentError && (
+                  <div role="alert" style={{ color: theme.error, fontSize: '12px', marginBottom: '8px' }}>
+                    {commentError}
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                     <textarea
@@ -1666,7 +1711,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
                 border: `1px solid ${theme.border}`
               }}>
                 <div style={{ fontSize: '12px', color: theme.text + '80', marginBottom: '5px' }}>
-                  Original Entry: {editingEntry.created_at} • {editingEntry.time}
+                  Original entry: {new Date(editingEntry.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                 </div>
                 <div style={{ fontSize: '12px', color: theme.text + '60' }}>
                   Last edited: Just now
@@ -1781,8 +1826,11 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab } : JournalPagePr
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { value: 'community', label: 'Community', desc: 'Visible to everyone', icon: '👥' },
-                    { value: 'friends', label: 'Specific Connections', desc: 'Only selected connections', icon: '👤' }
+                    { value: 'community', label: 'Community', desc: 'Everyone signed in to SoulLog', icon: '👥' },
+                    // Was "Specific Connections — only selected connections", but
+                    // there is no way to pick people: it has always meant
+                    // everyone you're connected with. Now it says so.
+                    { value: 'friends', label: 'My Connections', desc: "Only people you've connected with", icon: '👤' }
                   ].map(option => (
                     <label key={option.value} style={{
                       display: 'flex',

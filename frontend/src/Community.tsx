@@ -24,11 +24,13 @@ interface CommunityFeedProps {
   onViewProfile?: (username: string) => void;
   /** Open a Whispers conversation that was just created. */
   onOpenConversation?: (conversationId: number) => void;
+  /** Which tab to open on — 'Souls' when arriving from "Find Connections". */
+  initialTab?: string;
 }
 
-const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation }) => {
+const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab }) => {
 
-  const [activeTab, setActiveTab] = useState<string>(ACTIVE_TAB.SANCTUARY);
+  const [activeTab, setActiveTab] = useState<string>(initialTab || ACTIVE_TAB.SANCTUARY);
 
   const tabs = [
     { id: 'home', label: 'Sanctuary', icon: Home },

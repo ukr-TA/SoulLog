@@ -39,6 +39,8 @@ type InsightCard = {
 interface InsightsPageProps {
   theme: Theme;
   darkMode?: boolean;
+  /** Open the journal composer with this prompt added. */
+  onWriteWithPrompt?: (prompt: string) => void;
 }
 
 type MoodBar = { emoji: string; label: string; value: number; height: number };
@@ -49,7 +51,7 @@ const RANGES: Record<string, number> = {
   '3 Months': 90,
 };
 
-const InsightsPage = ({ theme }: InsightsPageProps) => {
+const InsightsPage = ({ theme, onWriteWithPrompt }: InsightsPageProps) => {
   const [activeFilter, setActiveFilter] = useState('30 Days');
   const [progressValue, setProgressValue] = useState(0);
 
@@ -149,7 +151,7 @@ const InsightsPage = ({ theme }: InsightsPageProps) => {
     };
   }, []);
 
-  const ProgressRing = ({ value }: { value: number }) => {
+  const renderProgressRing = ({ value }: { value: number }) => {
     return (
       <div style={{ width: '100px', height: '100px', margin: '0 auto', position: 'relative' }}>
         <div style={{
@@ -289,7 +291,7 @@ const InsightsPage = ({ theme }: InsightsPageProps) => {
                   // screen readers without changing the chart's layout.
                   title={`${mood.label} — ${mood.value} check-in${mood.value === 1 ? '' : 's'}`}
                   aria-label={`${mood.label}: ${mood.value} check-ins`}
-                  style={{ position: 'relative', cursor: 'pointer' }}
+                  style={{ position: 'relative', cursor: 'help' }}
                 >
                   <div
                     style={{
@@ -351,7 +353,7 @@ const InsightsPage = ({ theme }: InsightsPageProps) => {
             <div style={{ fontSize: '16px', marginBottom: '15px', color: theme.text, fontWeight: '500', textAlign: 'center' }}>
               Weekly Goal Progress
             </div>
-            <ProgressRing value={progressValue} />
+            {renderProgressRing({ value: progressValue })}
             <div style={{ fontSize: '11px', marginTop: '10px', color: theme.text, opacity: 0.6, textAlign: 'center' }}>
               Days active in the last 7
             </div>
@@ -480,20 +482,7 @@ const InsightsPage = ({ theme }: InsightsPageProps) => {
                 borderRadius: '15px',
                 padding: '20px',
                 marginBottom: index < insights.length - 1 ? '15px' : '0',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer',
                 border: `1px solid ${theme.border}`
-              }}
-              onClick={() => console.log('Insight clicked:', insight.text)}
-              onMouseEnter={(e) => {
-                const target = e.currentTarget as HTMLElement;
-                target.style.background = theme.border;
-                target.style.transform = 'translateX(5px)';
-              }}
-              onMouseLeave={(e) => {
-                const target = e.currentTarget as HTMLElement;
-                target.style.background = theme.cardBg;
-                target.style.transform = 'translateX(0)';
               }}
             >
               <div style={{
@@ -514,8 +503,20 @@ const InsightsPage = ({ theme }: InsightsPageProps) => {
               }}>
                 {insight.text}
               </div>
-              <div style={{ fontSize: '12px', color: theme.mutedText }}>
-                {insight.date}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '12px', color: theme.mutedText }}>
+                  {insight.date}
+                </div>
+                {/* The card used to log to the developer console when
+                    clicked, and nothing else. This is what it now offers. */}
+                {onWriteWithPrompt && (
+                  <button
+                    onClick={() => onWriteWithPrompt(`About my ${insight.category.toLowerCase()}: what do I make of it, and is there anything I want to do differently?`)}
+                    style={{ background: 'none', border: 'none', padding: 0, color: theme.secondary, cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}
+                  >
+                    Reflect on this →
+                  </button>
+                )}
               </div>
             </div>
           ))}

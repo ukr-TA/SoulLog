@@ -34,14 +34,52 @@ interface ToggleProps {
   size?: ButtonSize;
 }
 
+const Button = ({ children, variant = "primary", size = "md", className = "", onClick, theme }: ButtonProps  & { theme: Theme }) => {
+  const variants: Record<ButtonVariant, React.CSSProperties> = {
+    primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
+    secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
+    outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
+    ghost: { backgroundColor: 'transparent', color: theme.text }
+  };
+
+  const sizes: Record<ButtonSize, string> = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2'
+  };
+
+  return (
+    <button 
+      className={`rounded-lg flex justify-center items-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className}`}
+      style={variants[variant]}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Toggle = ({ enabled, onToggle, size = "md", theme }: ToggleProps & { theme: Theme }) => (
+  <button
+    onClick={onToggle}
+    className={`relative inline-flex items-center ${size === 'sm' ? 'h-5 w-9' : 'h-6 w-11'} rounded-full transition-colors duration-200 focus:outline-none`}
+    style={{ backgroundColor: enabled ? theme.secondary : '#6B7280' }}
+  >
+    <span
+      className={`inline-block ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} rounded-full bg-white transform transition-transform duration-200 ${
+        enabled ? (size === 'sm' ? 'translate-x-5' : 'translate-x-3') : '-translate-x-3'
+      }`}
+    />
+  </button>
+);
+
 const AccountsPage = ({ theme, setHideExtra, darkMode, setDarkMode, setActiveTab } : MessagePageProps) => {
   const [exportError, setExportError] = useState<string | null>(null);
 
 
   useEffect(() => {
-   setHideExtra(true);
-   return () => setHideExtra(false); 
-  })
+    setHideExtra(true);
+    return () => setHideExtra(false);
+  }, [setHideExtra])
 
   const menuItems = [
     { 
@@ -112,43 +150,7 @@ const AccountsPage = ({ theme, setHideExtra, darkMode, setDarkMode, setActiveTab
     }
   };
 
-  const Button = ({ children, variant = "primary", size = "md", className = "", onClick }: ButtonProps ) => {
-    const variants: Record<ButtonVariant, React.CSSProperties> = {
-      primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
-      secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
-      outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
-      ghost: { backgroundColor: 'transparent', color: theme.text }
-    };
 
-    const sizes: Record<ButtonSize, string> = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2'
-    };
-
-    return (
-      <button 
-        className={`rounded-lg flex justify-center items-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className}`}
-        style={variants[variant]}
-        onClick={onClick}
-      >
-        {children}
-      </button>
-    );
-  };
-
-  const Toggle = ({ enabled, onToggle, size = "md" }: ToggleProps) => (
-    <button
-      onClick={onToggle}
-      className={`relative inline-flex items-center ${size === 'sm' ? 'h-5 w-9' : 'h-6 w-11'} rounded-full transition-colors duration-200 focus:outline-none`}
-      style={{ backgroundColor: enabled ? theme.secondary : '#6B7280' }}
-    >
-      <span
-        className={`inline-block ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} rounded-full bg-white transform transition-transform duration-200 ${
-          enabled ? (size === 'sm' ? 'translate-x-5' : 'translate-x-3') : '-translate-x-3'
-        }`}
-      />
-    </button>
-  );
 
   return (
     <div className='main-content text-left' style={{ backgroundColor: theme.background, minHeight: '100vh' }}>
@@ -221,7 +223,7 @@ const AccountsPage = ({ theme, setHideExtra, darkMode, setDarkMode, setActiveTab
                       {darkMode ? 'Dark Mode' : 'Light Mode'}
                     </span>
                   </div>
-                  <Toggle 
+                  <Toggle theme={theme} 
                     enabled={darkMode}
                     onToggle={async () => {
                       saveTheme(!darkMode ? 'dark' : 'light');
@@ -231,7 +233,7 @@ const AccountsPage = ({ theme, setHideExtra, darkMode, setDarkMode, setActiveTab
                 </div>
 
                 {/* Logout Button */}
-                <Button 
+                <Button theme={theme} 
                   variant="outline" 
                   onClick={handleLogout}
                   className="w-full justify-center border-red-500 text-red-500 hover:bg-red-50"

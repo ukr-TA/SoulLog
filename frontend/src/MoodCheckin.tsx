@@ -85,38 +85,56 @@ const MoodCheckin = ({ theme, setHideExtra, setActiveTab, backPage }: Props) => 
   const [description, setDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showCircleTeaser, setShowCircleTeaser] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ kind: 'saved' | 'error'; text: string } | null>(null);
 
   const handleSave = async () => {
-    setIsSaving(true);
-
+    // Checked before "saving" is shown: it used to set the button to
+    // "Saving..." and then return, leaving it stuck there for good.
     if (!selectedMood) {
+      setSaveMessage({ kind: 'error', text: 'Pick a mood first.' });
       return;
     }
+    if (isSaving) return;
 
+    setIsSaving(true);
+    setSaveMessage(null);
     const { value: access_token } = await Preferences.get({ key: 'access_token' });
 
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/mood/`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${access_token}`
-      },
-      body: JSON.stringify({
-        mood: selectedMood,
-        reason: selectedReason,
-        intensity,
-        description,
-      })
-    });
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/mood/`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${access_token}`
+        },
+        body: JSON.stringify({
+          mood: selectedMood,
+          reason: selectedReason,
+          intensity,
+          description,
+        })
+      });
 
-    console.log(await response.json())
-    setDescription("");
-    setSelectedMood(null);
-    setSelectedReason('');
-    setShowCircleTeaser(false);
-    setIsSaving(false);
-    setIntensity(5);
+      if (!response.ok) {
+        // The form is left as it was, so nothing needs retyping.
+        setSaveMessage({ kind: 'error', text: "Couldn't save that check-in. Please try again." });
+        return;
+      }
+
+      // Said out loud: the form used to reset silently, with nothing to
+      // show the check-in had been saved.
+      setSaveMessage({ kind: 'saved', text: `Saved — feeling ${selectedMood.toLowerCase()}.` });
+      setDescription("");
+      setSelectedMood(null);
+      setSelectedReason('');
+      setShowCircleTeaser(false);
+      setIntensity(5);
+    } catch {
+      setSaveMessage({ kind: 'error', text: "Couldn't reach the server. Check your connection and try again." });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -186,23 +204,29 @@ const MoodCheckin = ({ theme, setHideExtra, setActiveTab, backPage }: Props) => 
             opacity: showCircleTeaser ? 1 : 0.6,
           }}
         >
+          {/* Soul Circles aren't built yet. This used to announce that
+              "others feeling <mood> are chatting for the next 2 hours" —
+              nobody was — with a Join button that reloaded this screen.
+              It now says plainly what the idea is and that it's coming. */}
           <p className="font-bold text-md" style={{ color: theme.text }}>
-            {showCircleTeaser ? "Join today’s Soul Circle" : "Log your mood to unlock Soul Circles"}
+            Soul Circles — coming soon
           </p>
           <p className="text-sm" style={{ color: theme.secondary }}>
-            {showCircleTeaser
-              ? `Others feeling “${selectedMood}” are chatting for the next 2 hours.`
-              : "Match with 5–10 people who feel like you do today."}
+            Small, temporary groups of people who feel like you do today.
+            {showCircleTeaser && selectedMood ? ` You'd be matched with others feeling ${selectedMood.toLowerCase()}.` : ''}
           </p>
           <button
-            onClick={() => setActiveTab(showCircleTeaser ? "SoulCircles" : "Dashboard")}
-            className="border-0 !rounded-4xl font-normal cursor-pointer min-w-[100px]"
+            disabled
+            title="Soul Circles aren't available yet"
+            className="border-0 !rounded-4xl font-normal min-w-[100px]"
             style={{
               background: `linear-gradient(45deg, ${theme.secondary}, ${theme.accent})`,
               color: theme.background,
+              opacity: 0.6,
+              cursor: 'default',
             }}
           >
-            {showCircleTeaser ? "Join" : "Learn more"}
+            Coming soon
           </button>
         </div>
 
@@ -329,6 +353,33 @@ const MoodCheckin = ({ theme, setHideExtra, setActiveTab, backPage }: Props) => 
             >
               {isSaving ? "Saving..." : "Save"}
             </button>
+            {saveMessage && (
+              <div
+                role={saveMessage.kind === 'error' ? 'alert' : 'status'}
+                className="text-sm text-center"
+                style={{ color: saveMessage.kind === 'error' ? theme.error : theme.secondary }}
+              >
+                {saveMessage.text}
+                {saveMessage.kind === 'saved' && (
+                  <>
+                    {' · '}
+                    <button
+                      onClick={() => setActiveTab('Log')}
+                      style={{ background: 'none', border: 'none', padding: 0, color: theme.accent, textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      Write about it
+                    </button>
+                    {' · '}
+                    <button
+                      onClick={() => setActiveTab('Dashboard')}
+                      style={{ background: 'none', border: 'none', padding: 0, color: theme.accent, textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      Back to dashboard
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
         </div>
 
         {/* Summary */}

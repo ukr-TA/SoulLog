@@ -133,6 +133,7 @@ class MyProfileView(APIView):
 
         text_fields = {
             "bio": 2000,
+            "tagline": 120,
             "location": 120,
             "website": 200,
             "current_focus": 200,

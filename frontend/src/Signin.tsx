@@ -1,31 +1,27 @@
 import { useState } from 'react';
-import { Preferences } from '@capacitor/preferences';
 import SoulLog from './assets/SoulLog.svg';
 import { buildTheme } from './theme';
+import { signIn } from './auth';
 
 interface LoginPageProps {
   setCurrentPage: (page: string) => void;
   darkMode: boolean;
 }
 
-/** What `POST /auth/login` returns on success. */
-interface LoginTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: string;
-}
-
 const LoginPage = ({setCurrentPage, darkMode}: LoginPageProps) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  // Guards against a double click signing in twice, and gives the button
+  // something to say while it waits.
+  const [submitting, setSubmitting] = useState(false);
 
   // The palette this screen used to define inline was a copy of the
   // shared one; it now comes from theme.ts so there is one of it.
   const theme = buildTheme(darkMode);
 
   const handleSubmit = async () => {
+    if (submitting) return;
     setError('');
 
     if (!username || !password) {
@@ -33,29 +29,14 @@ const LoginPage = ({setCurrentPage, darkMode}: LoginPageProps) => {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: username,
-        password: password
-      })
-    });
-
-    if (response.ok) {
-      const { access_token, refresh_token, token_type, expires_in }: LoginTokens =
-        await response.json();
-      await Preferences.set({key: 'access_token', value: access_token})
-      await Preferences.set({key: 'refresh_token', value: refresh_token})
-      await Preferences.set({key: 'token_type', value: token_type})
-      await Preferences.set({key: 'expires_in', value: expires_in})
-      setCurrentPage('dashboard');
-    } else {
-      setError('Invalid username or password');
+    setSubmitting(true);
+    const problem = await signIn(username, password);
+    setSubmitting(false);
+    if (problem) {
+      setError(problem);
+      return;
     }
+    setCurrentPage('dashboard');
   };
 
   return (
@@ -68,7 +49,10 @@ const LoginPage = ({setCurrentPage, darkMode}: LoginPageProps) => {
       }}
     >
       {/* Login Card */}
-      <div 
+      <div
+        // Enter anywhere in the form signs in. The fields aren't in a
+        // <form>, so the browser didn't do this on its own.
+        onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }} 
         style={{
           background: theme.surface,
           borderRadius: '2rem',
@@ -201,6 +185,7 @@ const LoginPage = ({setCurrentPage, darkMode}: LoginPageProps) => {
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
+            disabled={submitting}
             style={{
               width: '100%',
               background: theme.accent,
@@ -217,7 +202,7 @@ const LoginPage = ({setCurrentPage, darkMode}: LoginPageProps) => {
             onMouseEnter={(e) => { (e.target as HTMLElement).style.transform = 'scale(1.02)'; }}
             onMouseLeave={(e) => { (e.target as HTMLElement).style.transform = 'scale(1)'; }}
           >
-            Sign In
+            {submitting ? 'Signing in…' : 'Sign In'}
           </button>
 
           {/* Forgot Password Link */}

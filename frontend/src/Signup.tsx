@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SoulLog from './assets/SoulLog.svg';
 import { buildTheme } from './theme';
+import { NETWORK_ERROR, firstFieldError, signIn } from './auth';
 
 interface SignupPageProps {
   setCurrentPage: (page: string) => void;
@@ -15,16 +16,16 @@ const SignupPage = ({setCurrentPage, darkMode}: SignupPageProps) => {
   const [phonenumber, setPhonenumber] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // The palette this screen used to define inline was a copy of the
   // shared one; it now comes from theme.ts so there is one of it.
   const theme = buildTheme(darkMode);
 
-  // The button this is wired to is a plain <button>, so the event is a
-  // mouse click rather than a form submit — preventDefault below is kept
-  // exactly as it was.
-  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+  // Called from the button and from Enter in any field.
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    if (submitting) return;
     setError('');
 
     if (!username || !password || !confirmPassword) {
@@ -42,25 +43,47 @@ const SignupPage = ({setCurrentPage, darkMode}: SignupPageProps) => {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        fullname: fullname,
-        username: username,
-        password: password,
-        email: email,
-      })
-    });
-
-    if (response.ok) {
-      setCurrentPage('login');
-      alert('Account created successfully!');
-    } else {
-      alert('Failed to create account');
+    setSubmitting(true);
+    let response: Response;
+    try {
+      response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullname,
+          username,
+          password,
+          email,
+          // Optional. This field was on the form from the start and used
+          // to be dropped before the request was sent.
+          phone_number: phonenumber.trim(),
+        }),
+      });
+    } catch {
+      setSubmitting(false);
+      setError(NETWORK_ERROR);
+      return;
     }
+
+    if (!response.ok) {
+      // The server says exactly what's wrong — a taken username, a weak
+      // password — and this used to replace it with "Failed to create
+      // account" in a browser alert.
+      const body = await response.json().catch(() => null);
+      setSubmitting(false);
+      setError(firstFieldError(body) || "Couldn't create your account. Please check the details and try again.");
+      return;
+    }
+
+    // Straight in, with the account just created: no alert, and no
+    // second trip through the sign-in screen with the same details.
+    const problem = await signIn(username, password);
+    setSubmitting(false);
+    if (problem) {
+      setCurrentPage('login');
+      return;
+    }
+    setCurrentPage('dashboard');
   };
 
   return (
@@ -73,7 +96,8 @@ const SignupPage = ({setCurrentPage, darkMode}: SignupPageProps) => {
       }}
     >
       {/* Signup Card */}
-      <div 
+      <div
+        onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(e); }} 
         style={{
           background: theme.surface,
           borderRadius: '2rem',
@@ -327,6 +351,7 @@ const SignupPage = ({setCurrentPage, darkMode}: SignupPageProps) => {
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
+            disabled={submitting}
             style={{
               width: '100%',
               background: theme.accent,
@@ -342,7 +367,7 @@ const SignupPage = ({setCurrentPage, darkMode}: SignupPageProps) => {
             onMouseEnter={(e) => { (e.target as HTMLElement).style.transform = 'scale(1.02)'; }}
             onMouseLeave={(e) => { (e.target as HTMLElement).style.transform = 'scale(1)'; }}
           >
-            Create Account
+            {submitting ? 'Creating your account…' : 'Create Account'}
           </button>
         </div>
 

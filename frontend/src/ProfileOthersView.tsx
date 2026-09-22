@@ -20,8 +20,9 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Phone, Mail, User, Eye, MoreHorizontal } from 'lucide-react';
+import { MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Phone, Mail, User, MoreHorizontal } from 'lucide-react';
 import { ApiError, del, get, post } from './api';
+import { profileShare, shareOrCopy } from './links';
 import { buildTheme } from './theme';
 import type { Theme } from './theme';
 import type { Achievement, PublicProfile } from './types';
@@ -51,6 +52,12 @@ type ViewedProfile = PublicProfile & {
   values?: string;
 };
 
+/** A post's first line, when the post has more than one; otherwise nothing. */
+function postHeading(content: string): string {
+  const [first, ...rest] = content.trim().split('\n');
+  return rest.join('').trim() ? first.slice(0, 80) : '';
+}
+
 /** One row of `GET /profile/<username>/posts/`, narrowed to what's read here. */
 interface ProfilePostRow {
   id: number;
@@ -76,7 +83,7 @@ interface TopJournal {
   date?: string;
   emoji: string;
   tags: string[];
-  interactions: { views: number; reactions: number; comments: number };
+  interactions: { reactions: number; comments: number };
   isHighlighted: boolean;
   liked?: boolean;
 }
@@ -171,7 +178,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
       // to ask for, and asking would just be a 200 with an empty list.
       const posts: ProfilePostsResponse = profile.restricted
         ? { posts: [] }
-        : await get<ProfilePostsResponse>(`/profile/${encodeURIComponent(username)}/posts/`).catch(
+        : await get<ProfilePostsResponse>(`/profile/${encodeURIComponent(username)}/posts/?limit=50`).catch(
             (): ProfilePostsResponse => ({ posts: [] }),
           );
 
@@ -180,7 +187,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
         id: profile.id,
         name: profile.name,
         username: profile.username,
-        title: profile.current_focus || '',
+        title: profile.tagline || profile.current_focus || '',
         email: profile.email || '',
         phone: profile.phone || '',
         location: profile.location || '',
@@ -203,14 +210,18 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
           // the tile below says 'Reactions' and now means it.
           totalReactions: profile.stats?.reactionsReceived || 0,
         },
-        topJournals: (posts.posts || []).slice(0, 4).map((row): TopJournal => ({
+        // All the posts loaded, not four: "View All Posts" reveals the rest.
+        topJournals: (posts.posts || []).map((row): TopJournal => ({
           id: row.id,
-          title: (row.content || '').slice(0, 60),
+          // Posts have no title. The card used to print the first 60
+          // characters as a heading and then the same text again below it.
+          // The first line is the heading only when there's more after it.
+          title: postHeading(row.content || ''),
           excerpt: (row.content || '').slice(0, 200),
           date: row.timestamp,
           emoji: row.media ? '🖼️' : '📝',
           tags: row.tags || [],
-          interactions: { views: 0, reactions: row.likes, comments: row.comments },
+          interactions: { reactions: row.likes, comments: row.comments },
           isHighlighted: false,
           liked: row.liked,
         })),
@@ -273,6 +284,41 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
     }
   };
 
+  // Removing a connection is asked twice, inline: the first tap turns the
+  // button into "Tap again to remove". A browser confirm() box would do
+  // the same job less gracefully.
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  /** Withdraw a request you sent, or remove an existing connection. */
+  const handleRemoveConnection = async (kind: 'withdraw' | 'remove') => {
+    if (kind === 'remove' && !confirmRemove) {
+      setConfirmRemove(true);
+      window.setTimeout(() => setConfirmRemove(false), 4000);
+      return;
+    }
+    try {
+      await del(`/social/connections/${userData.id}/`);
+      setConfirmRemove(false);
+      setNotice(kind === 'withdraw' ? 'Request withdrawn.' : 'Connection removed.');
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'That did not work.');
+    }
+  };
+
+  /** Answer a request this person sent you. */
+  const handleRespond = async (action: 'accept' | 'decline') => {
+    const connectionId = userData.relationship.connection_id;
+    if (!connectionId) return;
+    try {
+      await post(`/social/requests/${connectionId}/respond/`, { action });
+      setNotice(action === 'accept' ? `You're now connected with ${userData.name}.` : 'Request declined.');
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'That did not work.');
+    }
+  };
+
   const handleSendMessage = async () => {
     try {
       const conversation = await post<{ id: number }>('/messages/conversations/', {
@@ -287,13 +333,9 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
   };
 
   const handleShareProfile = async () => {
-    const url = `${window.location.origin}/#/profile/${userData.username}`;
-    if (navigator.share) {
-      await navigator.share({ title: `${userData.name} on SoulLog`, url }).catch(() => {});
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(url).catch(() => {});
-      setNotice('Profile link copied.');
-    }
+    const result = await shareOrCopy(profileShare(userData.username, userData.name));
+    if (result === 'copied') setNotice('Profile link copied — anyone who opens it lands on this profile.');
+    else if (result === 'failed') setNotice(`Share @${userData.username} so people can find them on SoulLog.`);
   };
 
   const handleBlock = async () => {
@@ -329,7 +371,10 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
     }
   };
 
-  const handleViewAllPosts = () => setNotice('All posts are shown below.');
+  // "View All Posts" used to announce that all posts were shown below —
+  // while four were. It now shows the rest, and can collapse them again.
+  const [showAllPosts, setShowAllPosts] = useState(false);
+  const handleViewAllPosts = () => setShowAllPosts((all) => !all);
 
   const handleSharePost = async (journalId: number) => {
     const url = `${window.location.origin}/#/sanctuary/${journalId}`;
@@ -534,12 +579,26 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                     {userData.relationship.state === 'none' && (
                       <Button variant="outline" onClick={handleConnect}>Connect</Button>
                     )}
+                    {/* These two used to be labels drawn as buttons. They now
+                        do what their state suggests: withdraw the request,
+                        or (after a second tap) remove the connection. */}
                     {userData.relationship.state === 'pending' &&
                       userData.relationship.direction === 'outgoing' && (
-                      <Button variant="ghost">Requested</Button>
+                      <Button variant="ghost" onClick={() => handleRemoveConnection('withdraw')}>
+                        Requested · Withdraw
+                      </Button>
+                    )}
+                    {userData.relationship.state === 'pending' &&
+                      userData.relationship.direction === 'incoming' && (
+                      <>
+                        <Button variant="primary" onClick={() => handleRespond('accept')}>Accept request</Button>
+                        <Button variant="ghost" onClick={() => handleRespond('decline')}>Decline</Button>
+                      </>
                     )}
                     {userData.relationship.state === 'accepted' && (
-                      <Button variant="ghost">Connected ✓</Button>
+                      <Button variant="ghost" onClick={() => handleRemoveConnection('remove')}>
+                        {confirmRemove ? 'Tap again to remove' : 'Connected ✓'}
+                      </Button>
                     )}
                     <Button variant="secondary" onClick={handleSendMessage}>
                       <MessageCircle className="w-4 h-4 mr-2" />
@@ -604,13 +663,15 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                   <BookOpen className="w-6 h-6" style={{ color: theme.secondary }} />
                   Popular Journals
                 </h2>
-                <Button variant="outline" size="sm" onClick={handleViewAllPosts}>
-                  View All Posts
-                </Button>
+                {userData.topJournals.length > 4 && (
+                  <Button variant="outline" size="sm" onClick={handleViewAllPosts}>
+                    {showAllPosts ? 'Show fewer' : `View all ${userData.topJournals.length} posts`}
+                  </Button>
+                )}
               </div>
               
               <div className="space-y-6">
-                {userData.topJournals.map((journal) => (
+                {userData.topJournals.slice(0, showAllPosts ? undefined : 4).map((journal) => (
                   <div 
                     key={journal.id}
                     className={`relative p-6 rounded-xl border-l-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${journal.isHighlighted ? 'ring-2' : ''}`} 
@@ -636,7 +697,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                       <div className="flex items-center gap-3 flex-1">
                         <span className="text-3xl">{journal.emoji}</span>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-xl mb-1">{journal.title}</h3>
+                          {journal.title && <h3 className="font-semibold text-xl mb-1">{journal.title}</h3>}
                           <span className="text-sm opacity-60">{journal.date}</span>
                         </div>
                       </div>
@@ -649,7 +710,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                         {journal.tags.map((tag) => (
                           <span 
                             key={tag}
-                            className="px-3 py-1 rounded-full text-sm font-medium transition-all hover:scale-105 cursor-pointer"
+                            className="px-3 py-1 rounded-full text-sm font-medium transition-all"
                             style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
                           >
                             #{tag}
@@ -661,10 +722,6 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                     {/* Interaction Stats */}
                     <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: theme.border }}>
                       <div className="flex items-center gap-6 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4 opacity-75" />
-                          <span className="font-medium">{journal.interactions.views.toLocaleString()}</span>
-                        </div>
                         <button 
                           className="flex items-center gap-1 transition-all hover:scale-110"
                           onClick={() => handleReaction(journal.id)}
@@ -786,7 +843,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                 {userData.achievements.map((achievement, index) => (
                   <div 
                     key={index}
-                    className="flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-105 cursor-pointer"
+                    className="flex items-center gap-3 p-3 rounded-lg transition-all"
                     style={{ backgroundColor: `${index % 2 === 0 ? theme.accent : theme.secondary}10` }}
                   >
                     <span className="text-2xl">{achievement.icon}</span>
@@ -809,7 +866,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                 {userData.favoriteTopics.map((topic) => (
                   <span 
                     key={topic}
-                    className="px-3 py-2 rounded-full text-sm font-medium cursor-pointer transition-all hover:scale-110 hover:shadow-lg"
+                    className="px-3 py-2 rounded-full text-sm font-medium transition-all hover:shadow-lg"
                     style={{ 
                       backgroundColor: `${theme.secondary}20`, 
                       color: theme.secondary,

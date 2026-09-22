@@ -41,9 +41,13 @@ def _wants(recipient, kind):
         return True
 
     prefs = app_settings.notifications or {}
-    if not prefs.get("pushEnabled", True) and not prefs.get("emailEnabled", True):
-        # Both master switches off means the user has asked for nothing.
-        # The row is still not created — a silent pile-up they never asked
+    # "Notifications" (stored as pushEnabled) is the master switch. It used
+    # to take both it *and* an email switch being off to silence anything,
+    # but SoulLog sends no notification email, so the email switch has been
+    # removed from Settings and this one alone decides.
+    if not prefs.get("pushEnabled", True):
+        # Switched off means the user has asked for nothing. The row is not
+        # created — a silent pile-up they never asked
         # for is not more honest than not creating it.
         return False
 

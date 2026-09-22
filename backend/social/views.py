@@ -123,6 +123,11 @@ class ConnectionRequestCreateView(APIView):
                     return _accept(existing, request)
                 return Response({"detail": "Your request is already pending."}, status=400)
             if existing.status == Connection.DECLINED:
+                from .relations import can_request_connection
+
+                allowed, reason = can_request_connection(request.user, target)
+                if not allowed:
+                    return Response({"detail": reason}, status=403)
                 # A declined request can be re-sent, but only by re-using the
                 # same row — so the other person still sees one request, not
                 # a growing pile.
@@ -134,6 +139,12 @@ class ConnectionRequestCreateView(APIView):
                 existing.save()
                 _notify_request(existing)
                 return Response(_connection_payload(existing, request), status=201)
+
+        from .relations import can_request_connection
+
+        allowed, reason = can_request_connection(request.user, target)
+        if not allowed:
+            return Response({"detail": reason}, status=403)
 
         connection = Connection.objects.create(requester=request.user, addressee=target)
         _notify_request(connection)
@@ -263,6 +274,11 @@ class FollowView(APIView):
         if user_id in blocked_user_ids(request.user):
             return Response({"detail": "You can't follow this person."}, status=403)
 
+        from .relations import accepts_followers
+
+        if not accepts_followers(target):
+            return Response({"detail": "This person isn't accepting followers."}, status=403)
+
         Follow.objects.get_or_create(follower=request.user, following=target)
         _notify_follow(request.user, target)
         return Response({"following": True})
@@ -298,6 +314,13 @@ class SuggestionsView(APIView):
 
     def get(self, request):
         user = request.user
+
+        # "Connection Recommendations" switched off means no suggestions
+        # at all — an empty list, which the Souls tab explains.
+        from .relations import wants_suggestions
+
+        if not wants_suggestions(user):
+            return Response([])
         limit = min(int(request.query_params.get("limit", 24)), 100)
 
         excluded = {user.id}

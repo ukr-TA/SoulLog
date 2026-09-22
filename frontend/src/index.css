@@ -73,10 +73,28 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
-button:hover {
-  border-color: #646cff;
+/*
+ * Focus rings: keyboard only.
+ *
+ * The rules that used to be here came with the Vite starter template: a
+ * #646cff (Vite's own purple-blue) border on every hovered button, and a
+ * browser focus ring on every clicked one. Neither was part of SoulLog's
+ * design, and together they left a blue outline on whatever you had just
+ * clicked. The screens draw their own hover states, so the hover rule is
+ * simply gone.
+ *
+ * The focus ring is not gone, only narrowed. `:focus-visible` is what the
+ * browser uses to tell a keyboard user apart from a mouse or touch one, so
+ * someone moving through the app with Tab still sees where they are —
+ * which they need to be able to use it at all — and nobody else sees a
+ * ring on the button they just clicked. It is SoulLog gold rather than
+ * the browser's default blue.
+ */
+:where(button, a, input, textarea, select, [role="button"], [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+:where(button, a, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid #CFAE61;
+  outline-offset: 2px;
 }

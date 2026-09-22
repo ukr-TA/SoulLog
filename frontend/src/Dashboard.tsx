@@ -18,6 +18,8 @@ import { Bell } from 'lucide-react';
 import { PiChatsCircleLight } from "react-icons/pi";
 import { Preferences } from '@capacitor/preferences';
 import CreateJournal from './CreateJournal';
+import { applyFontSize } from './appearance';
+import { clearProfileLink, readProfileLink } from './links';
 import MoodCheckin from './MoodCheckin';
 import SoulLogProfileForm from './ProfileForm';
 import SoulLogOthersProfile from './ProfileOthersView';
@@ -71,6 +73,51 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hideExtra, setHideExtra] = useState(false);
 
+  // A prompt handed from the Dashboard home to the composer. Cleared the
+  // moment the user is anywhere else, so opening the composer later from
+  // the sidebar starts blank rather than with a stale prompt.
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  useEffect(() => {
+    if (activeTab !== ACTIVE_TAB.LOG) setPendingPrompt(null);
+  }, [activeTab]);
+  // Where the profile form returns to. It is the first-run screen for new
+  // accounts (back to the dashboard) and the editor behind Edit Profile
+  // (back to the profile).
+  const [formReturnTo, setFormReturnTo] = useState<string>(ACTIVE_TAB.OVERVIEW);
+  const editProfile = () => {
+    setFormReturnTo(ACTIVE_TAB.PROFILE);
+    setActiveTab(ACTIVE_TAB.PROFILE_FORM);
+  };
+
+  // Which Settings section to open on — Privacy when arriving from the
+  // gear in Whispers, where "who can message me" lives.
+  const [settingsSection, setSettingsSection] = useState<string>('profile');
+  useEffect(() => {
+    if (activeTab !== ACTIVE_TAB.SETTINGS) setSettingsSection('profile');
+  }, [activeTab]);
+
+  // Community's starting tab, for "Find Connections".
+  const [communityTab, setCommunityTab] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (activeTab !== ACTIVE_TAB.COMMUNITY) setCommunityTab(undefined);
+  }, [activeTab]);
+  const findConnections = () => {
+    setCommunityTab('Souls');
+    setActiveTab(ACTIVE_TAB.COMMUNITY);
+  };
+
+  // One journal entry to open straight into its edit or share dialog.
+  const [journalFocus, setJournalFocus] = useState<{ id: number; action: 'edit' | 'share' } | null>(null);
+  const openJournalEntry = (id: number, action: 'edit' | 'share') => {
+    setJournalFocus({ id, action });
+    setActiveTab(ACTIVE_TAB.JOURNAL);
+  };
+
+  const writeWithPrompt = (prompt: string) => {
+    setPendingPrompt(prompt);
+    setActiveTab(ACTIVE_TAB.LOG);
+  };
+
   // Who is actually signed in. The sidebar used to read "Alex Johnson /
   // Premium Member" for everyone — a name nobody had, and a membership
   // tier the product doesn't have.
@@ -100,8 +147,24 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
         const profile = await get<MyProfile>('/profile/');
         setMe(profile);
 
+        // The saved text size (Settings → Appearance), applied app-wide.
+        // Best effort: a failure here just leaves the default size.
+        get<{ appearance?: { fontSize?: string } }>('/settings/')
+          .then((saved) => applyFontSize(saved.appearance?.fontSize))
+          .catch(() => {});
+
         // A user who hasn't filled in a profile lands on the onboarding
         // form the codebase already contained but never showed anyone.
+        // Opened from a shared profile link? Go there — unless this is a
+        // brand-new account, which sets up its own profile first.
+        const linked = readProfileLink();
+        clearProfileLink();
+        if (linked && profile.onboardingCompleted) {
+          if (linked.toLowerCase() === profile.username.toLowerCase()) setActiveTab(ACTIVE_TAB.PROFILE);
+          else openProfile(linked);
+          return;
+        }
+
         setActiveTab((current) =>
           current || (profile.onboardingCompleted ? ACTIVE_TAB.OVERVIEW : ACTIVE_TAB.PROFILE_FORM),
         );
@@ -583,9 +646,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
       <div className={isMobile ? 'flex-1' : 'flex-1 main-content'}>
 
         {
-          activeTab === ACTIVE_TAB.OVERVIEW ? <Overview theme={theme} darkMode={darkMode} isMobile={isMobile} setActiveTab={setActiveTab}/>
+          activeTab === ACTIVE_TAB.OVERVIEW ? <Overview theme={theme} darkMode={darkMode} isMobile={isMobile} setActiveTab={setActiveTab} onWriteWithPrompt={writeWithPrompt}/>
           : activeTab === ACTIVE_TAB.COMMUNITY ? (
               <CommunityFeed
+                key={communityTab ?? 'default'}
+                initialTab={communityTab}
                 theme={theme}
                 darkMode={darkMode}
                 setHideExtra={setHideExtra}
@@ -598,11 +663,16 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               <SoulLogProfileForm
                 theme={theme}
                 darkMode={darkMode}
+                mode={formReturnTo === ACTIVE_TAB.PROFILE ? 'edit' : 'onboarding'}
                 onDone={() => {
                   get<MyProfile>('/profile/').then(setMe).catch(() => {});
-                  setActiveTab(ACTIVE_TAB.OVERVIEW);
+                  setActiveTab(formReturnTo);
+                  setFormReturnTo(ACTIVE_TAB.OVERVIEW);
                 }}
-                onSkip={() => setActiveTab(ACTIVE_TAB.OVERVIEW)}
+                onSkip={() => {
+                  setActiveTab(formReturnTo);
+                  setFormReturnTo(ACTIVE_TAB.OVERVIEW);
+                }}
               />
             )
           : activeTab === ACTIVE_TAB.PROFILE_OTHER ? (
@@ -614,23 +684,25 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 onOpenConversation={openConversation}
               />
             )
-          : activeTab === ACTIVE_TAB.INSIGHTS ? <InsightsPage theme={theme} darkMode={darkMode} />
-          : activeTab === ACTIVE_TAB.JOURNAL ? <JournalHistoryPage theme={theme} darkMode={darkMode} setBackPage={setBackPage} setActiveTab={setActiveTab} />
-          : activeTab === ACTIVE_TAB.PROFILE ? <SoulLogOwnProfile theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} />
+          : activeTab === ACTIVE_TAB.INSIGHTS ? <InsightsPage theme={theme} darkMode={darkMode} onWriteWithPrompt={writeWithPrompt} />
+          : activeTab === ACTIVE_TAB.JOURNAL ? <JournalHistoryPage theme={theme} darkMode={darkMode} setBackPage={setBackPage} setActiveTab={setActiveTab} focus={journalFocus} onFocusHandled={() => setJournalFocus(null)} />
+          : activeTab === ACTIVE_TAB.PROFILE ? <SoulLogOwnProfile theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onEditProfile={editProfile} onFindConnections={findConnections} onOpenJournalEntry={openJournalEntry} />
           : activeTab === ACTIVE_TAB.MESSAGES ? (
               <MessagesPage
                 theme={theme}
                 darkMode={darkMode}
                 setHideExtra={setHideExtra}
                 initialConversationId={openConversationId}
+                onViewProfile={openProfile}
+                onOpenSettings={() => { setSettingsSection('privacy'); setActiveTab(ACTIVE_TAB.SETTINGS); }}
               />
             )
-          : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings theme={theme} darkMode setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
+          : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={settingsSection} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
           : activeTab === ACTIVE_TAB.ACCOUNTS ? <AccountsPage theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} isMobile setDarkMode={setDarkMode} setActiveTab={setActiveTab}/>
           : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab}/>
           /* CreateJournal takes no `backPage`: it navigates back to Journal
              itself, so the prop it was being handed was never read. */
-          : activeTab === ACTIVE_TAB.LOG ? <CreateJournal theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile={isMobile}/>
+          : activeTab === ACTIVE_TAB.LOG ? <CreateJournal key={pendingPrompt ?? 'blank'} theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile={isMobile} initialPrompt={pendingPrompt}/>
           : activeTab === '' ? null  /* first paint, before we know where to send them */
           : <MoodCheckin theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} backPage={backPage} />
         }

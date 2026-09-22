@@ -49,6 +49,7 @@ const SoulLogApp = () => {
   const [isLoading, setLoading] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [resetCodes, setResetCodes] = useState<{ uid: string; token: string } | null>(null);
 
   // The palette lives in theme.ts now.
   //
@@ -65,6 +66,17 @@ const SoulLogApp = () => {
     (async () => {
       const t = await loadTheme();
       if (mounted) setDarkMode(t === 'dark');
+
+      // Opened from the link in a password-reset email? Go straight to the
+      // reset screen with both codes filled in, signed in or not.
+      const reset = window.location.hash.match(/^#\/reset-password\/([^/]+)\/([^/?#]+)/);
+      if (reset) {
+        setResetCodes({ uid: decodeURIComponent(reset[1]), token: decodeURIComponent(reset[2]) });
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        setCurrentPage('forgot-password');
+        setLoading(false);
+        return;
+      }
 
       const { value: token } = await Preferences.get({key: 'access_token'}) ?? '';
       setTimeout(() => {
@@ -91,7 +103,7 @@ const SoulLogApp = () => {
 
   if (currentPage === 'signup') return <SignupPage setCurrentPage={setCurrentPage} darkMode={darkMode as boolean} />
   if (currentPage === 'login') return <LoginPage setCurrentPage={setCurrentPage} darkMode={darkMode as boolean} />
-  if (currentPage === 'forgot-password') return <ForgotPasswordPage setCurrentPage={setCurrentPage} darkMode={darkMode as boolean} />
+  if (currentPage === 'forgot-password') return <ForgotPasswordPage setCurrentPage={setCurrentPage} darkMode={darkMode as boolean} resetCodes={resetCodes} />
   if (currentPage === 'dashboard') return <Dashboard darkMode={darkMode} setDarkMode={setDarkMode} theme={theme} isMobile={isMobile} />
 
   return (

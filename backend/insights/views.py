@@ -45,3 +45,21 @@ class InsightsSummaryView(APIView):
             "timePatterns": time_patterns(request.user, days=days),
             "commonThemes": common_themes(request.user, days=max(days, 30)),
         })
+
+
+class DashboardSummaryView(APIView):
+    """
+    GET /api/v1/insights/dashboard/
+
+    Everything the Dashboard home screen draws, computed from the user's
+    own data in one request: their name, streak, today's and this week's
+    progress against their own goals, the last 14 days of moods, and an
+    insight if the engine has one. See insights/dashboard.py.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .dashboard import dashboard_summary
+
+        return Response(dashboard_summary(request.user))

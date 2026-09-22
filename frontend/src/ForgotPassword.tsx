@@ -5,6 +5,8 @@ import { buildTheme } from './theme';
 interface ForgotPasswordPageProps {
   setCurrentPage: (page: string) => void;
   darkMode: boolean;
+  /** Codes from the reset-email link, which open the second step directly. */
+  resetCodes?: { uid: string; token: string } | null;
 }
 
 /**
@@ -16,7 +18,7 @@ interface ResetConfirmErrors {
   new_password?: string[];
 }
 
-const ForgotPasswordPage = ({setCurrentPage, darkMode}: ForgotPasswordPageProps) => {
+const ForgotPasswordPage = ({setCurrentPage, darkMode, resetCodes}: ForgotPasswordPageProps) => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,9 +29,9 @@ const ForgotPasswordPage = ({setCurrentPage, darkMode}: ForgotPasswordPageProps)
   // fields directly. Production needs a real email link -> route that
   // pre-fills these from the URL instead of asking the user to paste
   // them in by hand. Documented, not hidden.
-  const [step, setStep] = useState<'request' | 'confirm'>('request');
-  const [uid, setUid] = useState('');
-  const [token, setToken] = useState('');
+  const [step, setStep] = useState<'request' | 'confirm'>(resetCodes ? 'confirm' : 'request');
+  const [uid, setUid] = useState(resetCodes?.uid ?? '');
+  const [token, setToken] = useState(resetCodes?.token ?? '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -56,7 +58,7 @@ const ForgotPasswordPage = ({setCurrentPage, darkMode}: ForgotPasswordPageProps)
       if (response.ok) {
         // Deliberately the same message regardless of whether the
         // username exists — the backend enforces this, not just the UI.
-        setSuccessMessage("If an account with that username exists, a reset link has been sent to its email.");
+        setSuccessMessage("If an account with that username exists, we've emailed it a reset link. Open the link — or enter the two codes from the email below.");
         setStep('confirm');
       } else {
         setError('Something went wrong. Please try again.');
@@ -88,8 +90,10 @@ const ForgotPasswordPage = ({setCurrentPage, darkMode}: ForgotPasswordPageProps)
         body: JSON.stringify({ uid, token, new_password: newPassword })
       });
       if (response.ok) {
-        alert('Your password has been reset. You can now sign in.');
-        setCurrentPage('login');
+        // Said on the page, then on to sign in — it used to be an alert().
+        setError('');
+        setSuccessMessage('Your password has been reset. Taking you to sign in…');
+        window.setTimeout(() => setCurrentPage('login'), 1800);
       } else {
         const data: ResetConfirmErrors = await response.json().catch(() => ({}));
         setError(
@@ -235,7 +239,7 @@ const ForgotPasswordPage = ({setCurrentPage, darkMode}: ForgotPasswordPageProps)
             <>
               {successMessage && (
                 <div style={{ color: theme.secondary, fontSize: '0.9rem', textAlign: 'center', marginBottom: '1.5rem' }}>
-                  {successMessage} For this local build, paste the uid and token from the server's console log below.
+                  {successMessage}
                 </div>
               )}
 

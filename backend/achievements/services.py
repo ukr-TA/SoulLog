@@ -160,7 +160,7 @@ METRICS = {
 
 # --- awarding ---------------------------------------------------------------
 
-def check_and_award(user, metrics=None):
+def check_and_award(user, metrics=None, notify=True):
     """
     Award any badge whose condition is now met and wasn't before.
 
@@ -168,6 +168,11 @@ def check_and_award(user, metrics=None):
     have changed — writing a journal entry can't affect your connection
     count, so there's no reason to compute it. Omit it to check
     everything.
+
+    `notify=False` is for catching up on history (see the award_badges
+    command): a user who already had 30 entries when badges were
+    introduced should find the badges on their profile, not fourteen
+    "you've earned…" notifications for things they did weeks ago.
 
     Returns the list of newly-created UserBadge rows. Safe to call
     repeatedly; safe to call when nothing has changed.
@@ -201,7 +206,8 @@ def check_and_award(user, metrics=None):
         )
         if created:
             awarded.append(row)
-            _notify(user, badge, value)
+            if notify:
+                _notify(user, badge, value)
 
     return awarded
 
@@ -246,12 +252,19 @@ def summary_for(user, viewer=None):
     for symmetry with the other serializers and because a future "hide my
     badges" setting would be enforced here.
     """
+    # The "Achievement Sharing" setting: switched off, other people see no
+    # badges on this profile. The owner always sees their own.
+    if viewer is not None and viewer.id != user.id:
+        from social.relations import shares_achievements
+
+        if not shares_achievements(user):
+            return []
+
     rows = (
         UserBadge.objects.filter(user=user)
         .select_related("badge")
         .order_by("-earned_at")
     )
-    del viewer
 
     return [
         {

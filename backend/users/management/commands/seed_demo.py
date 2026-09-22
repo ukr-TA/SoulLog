@@ -159,6 +159,15 @@ class Command(BaseCommand):
         conversations = self._create_conversations(users, now)
         self.stdout.write(f"Created {conversations} conversations.")
 
+        # The rows above are created directly, not through the actions
+        # that normally award badges, so check them here. Without this the
+        # demo accounts showed "Nothing earned yet" beside eleven entries.
+        # Quietly: a demo account shouldn't open to a pile of badge
+        # notifications for history it never lived through.
+        from achievements.services import check_and_award
+        badges = sum(len(check_and_award(user, notify=False)) for user in users)
+        self.stdout.write(f"Awarded {badges} badges earned by that history.")
+
         self.stdout.write(self.style.SUCCESS(
             f"\nDemo data ready. Sign in as any of: "
             f"{', '.join(u.username for u in users)}\n"

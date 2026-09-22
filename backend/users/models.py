@@ -57,6 +57,9 @@ class UserProfile(models.Model):
     location = models.CharField(max_length=120, blank=True)
     website = models.CharField(max_length=200, blank=True)
 
+    # The short line under a name on a profile ("Mindful explorer…"). The
+    # profile form always asked for it and then dropped it.
+    tagline = models.CharField(max_length=120, blank=True)
     current_focus = models.CharField(max_length=200, blank=True)
     growth_areas = models.CharField(max_length=200, blank=True)
     values = models.CharField(max_length=200, blank=True)
@@ -66,7 +69,11 @@ class UserProfile(models.Model):
     cover_image = models.ImageField(upload_to="profiles/covers/", null=True, blank=True)
 
     profile_visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default="public")
-    journal_visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default="connections")
+    # The default visibility for a new journal entry. Private by default,
+    # like the entries themselves. This used to default to "connections"
+    # and was never read, so it had no effect; migration 0005 resets it to
+    # private for everyone before it starts being honoured.
+    journal_visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default="private")
     show_email = models.BooleanField(default=False)
     show_phone = models.BooleanField(default=False)
 

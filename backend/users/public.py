@@ -96,6 +96,7 @@ class PublicUserSerializer(serializers.Serializer):
         if can_see_body:
             data.update({
                 "bio": profile.bio,
+                "tagline": profile.tagline,
                 "location": profile.location,
                 "website": profile.website,
                 "current_focus": profile.current_focus,

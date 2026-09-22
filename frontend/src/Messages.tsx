@@ -24,9 +24,9 @@
  * to see new messages, which is a degradation rather than a breakage.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Send, Paperclip, Smile, Phone, Video, MoreVertical, ArrowLeft, Search, Info, Settings } from 'lucide-react';
-import { ApiError, get, openSocket, patch, post, upload, type LiveSocket } from './api';
+import { ApiError, del, get, openSocket, patch, post, upload, type LiveSocket } from './api';
 import { EditedMark, InlineEditor } from './ui';
 import { Avatar } from './ui';
 import type { Theme } from './theme';
@@ -36,7 +36,14 @@ interface MessagePageProps {
   darkMode?: boolean;
   setHideExtra?: (hidden: boolean) => void;
   initialConversationId?: number | null;
+  /** Open someone's profile — from the conversation menu. */
+  onViewProfile?: (username: string) => void;
+  /** Open Settings — from the gear above the conversation list. */
+  onOpenSettings?: () => void;
 }
+
+/** A small set of emoji for the message box's 🙂 button. */
+const QUICK_EMOJI = ['😊', '😂', '❤️', '🙏', '🌱', '✨', '🤗', '😌', '😢', '💪', '👍', '🔥', '🌙', '☕', '🎉', '💙'];
 
 type Conversation = {
   id: number;
@@ -52,6 +59,7 @@ type Conversation = {
   time: string;
   unread: number;
   typing: boolean;
+  muted?: boolean;
 };
 
 type ChatMessage = {
@@ -83,7 +91,7 @@ const readText = (value: unknown): string | null =>
 const POLL_INTERVAL_MS = 20000;
 const TYPING_TIMEOUT_MS = 4000;
 
-const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: MessagePageProps) => {
+const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewProfile, onOpenSettings }: MessagePageProps) => {
   const [selectedFriend, setSelectedFriend] = useState<number | null>(initialConversationId);
   const [message, setMessage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
@@ -283,6 +291,79 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
     }
   };
 
+  // The conversation menu (⋮ on desktop, ⓘ on phones). Both icons were
+  // drawn and did nothing; the server has always supported muting and
+  // leaving a conversation.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+
+  const toggleMute = async () => {
+    if (!currentFriend) return;
+    const muted = !currentFriend.muted;
+    try {
+      await post(`/messages/conversations/${currentFriend.id}/mute/`, { muted });
+      setConversations((rows) => rows.map((row) => (row.id === currentFriend.id ? { ...row, muted } : row)));
+      setMenuOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'That did not work.');
+    }
+  };
+
+  const leaveConversation = async () => {
+    if (!currentFriend) return;
+    if (!confirmLeave) {
+      setConfirmLeave(true);
+      return;
+    }
+    try {
+      await del(`/messages/conversations/${currentFriend.id}/`);
+      setMenuOpen(false);
+      setConfirmLeave(false);
+      setSelectedFriend(null);
+      setHideExtra?.(false);
+      loadConversations();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'That did not work.');
+    }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    handleTyping(message + emoji);
+    setEmojiOpen(false);
+  };
+
+  const renderConversationMenu = () =>
+    menuOpen && currentFriend ? (
+      <div
+        role="menu"
+        className="absolute right-0 top-full mt-2 z-20 rounded-xl shadow-lg overflow-hidden text-sm"
+        style={{ background: theme.surface, border: `1px solid ${theme.border}`, minWidth: '220px' }}
+      >
+        {currentFriend.username && onViewProfile && (
+          <button
+            role="menuitem"
+            className="w-full text-left px-4 py-3"
+            style={{ color: theme.text, background: 'transparent' }}
+            onClick={() => { setMenuOpen(false); onViewProfile(currentFriend.username!); }}
+          >
+            View profile
+          </button>
+        )}
+        <button role="menuitem" className="w-full text-left px-4 py-3" style={{ color: theme.text, background: 'transparent' }} onClick={toggleMute}>
+          {currentFriend.muted ? 'Unmute notifications' : 'Mute notifications'}
+        </button>
+        <button
+          role="menuitem"
+          className="w-full text-left px-4 py-3"
+          style={{ color: theme.error, background: 'transparent' }}
+          onClick={leaveConversation}
+        >
+          {confirmLeave ? 'Tap again to leave — they keep the history' : 'Leave conversation'}
+        </button>
+      </div>
+    ) : null;
+
   const handleTyping = (value: string) => {
     setMessage(value);
     if (!socketRef.current) return;
@@ -366,7 +447,10 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
     return friend.presenceLabel || '';
   };
 
-  const MessageBubble = ({ msg, wide }: { msg: ChatMessage; wide?: boolean }) => (
+  // Called as a function rather than rendered as a component: declared
+  // inside this screen, a component is re-created on every render, and
+  // React would rebuild everything in it — losing focus and local state.
+  const renderMessageBubble = ({ msg, wide }: { msg: ChatMessage; wide?: boolean }) => (
     <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
       <div
         className={
@@ -446,7 +530,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
     </div>
   );
 
-  const EmptyThread = () => (
+  const renderEmptyThread = () => (
     <div className="text-center py-10" style={{ color: theme.text, opacity: 0.6 }}>
       {loadingThread ? 'Loading…' : 'No messages yet. Say something.'}
     </div>
@@ -498,13 +582,23 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
             <div className="flex items-center gap-6 me-4">
               <Phone size={20} style={{ color: theme.text, opacity: 0.35 }} />
               <Video size={25} style={{ color: theme.text, opacity: 0.35 }} />
-              <Info size={21} style={{ color: theme.text }} />
+              <div className="relative">
+                <button
+                  aria-label="Conversation options"
+                  aria-expanded={menuOpen}
+                  onClick={() => { setMenuOpen((open) => !open); setConfirmLeave(false); }}
+                  style={{ background: 'none', border: 'none', padding: 0 }}
+                >
+                  <Info size={21} style={{ color: theme.text }} />
+                </button>
+                {renderConversationMenu()}
+              </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 text-left">
-            {messages.length === 0 && <EmptyThread />}
-            {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)}
+            {messages.length === 0 && renderEmptyThread()}
+            {messages.map((msg) => <Fragment key={msg.id}>{renderMessageBubble({ msg })}</Fragment>)}
             {typingName && (
               <p className="text-xs" style={{ color: theme.text, opacity: 0.6 }}>
                 {typingName} is typing…
@@ -660,7 +754,14 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
             <h3 className="text-md font-bold" style={{ color: theme.text }}>
               Whispers
             </h3>
-            <Settings size={16} style={{ color: theme.text }} />
+            <button
+              aria-label="Message settings"
+              title="Who can message you, and message notifications"
+              onClick={() => onOpenSettings?.()}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            >
+              <Settings size={16} style={{ color: theme.text }} />
+            </button>
           </div>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2"
@@ -779,9 +880,17 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
                 <button className="p-2 rounded-lg" title="Video isn't available yet" disabled>
                   <Video size={18} style={{ color: theme.text, opacity: 0.35 }} />
                 </button>
-                <button className="p-2 rounded-lg hover:bg-opacity-10">
-                  <MoreVertical size={18} style={{ color: theme.text }} />
-                </button>
+                <div className="relative">
+                  <button
+                    className="p-2 rounded-lg hover:bg-opacity-10"
+                    aria-label="Conversation options"
+                    aria-expanded={menuOpen}
+                    onClick={() => { setMenuOpen((open) => !open); setConfirmLeave(false); }}
+                  >
+                    <MoreVertical size={18} style={{ color: theme.text }} />
+                  </button>
+                  {renderConversationMenu()}
+                </div>
               </div>
             </div>
 
@@ -789,8 +898,8 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
               className="flex-1 overflow-y-auto p-4 space-y-4 text-left"
               style={{ backgroundColor: theme.background }}
             >
-              {messages.length === 0 && <EmptyThread />}
-              {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} wide />)}
+              {messages.length === 0 && renderEmptyThread()}
+              {messages.map((msg) => <Fragment key={msg.id}>{renderMessageBubble({ msg, wide: true })}</Fragment>)}
               {typingName && (
                 <p className="text-xs" style={{ color: theme.text, opacity: 0.6 }}>
                   {typingName} is typing…
@@ -825,7 +934,33 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null }: Message
                     className="flex-1 bg-transparent outline-none"
                     style={{ color: theme.text }}
                   />
-                  <Smile size={20} style={{ color: theme.text, opacity: 0.6 }} />
+                  <div className="relative">
+                    <button
+                      aria-label="Add emoji"
+                      aria-expanded={emojiOpen}
+                      onClick={() => setEmojiOpen((open) => !open)}
+                      style={{ background: 'none', border: 'none', padding: 0, display: 'flex' }}
+                    >
+                      <Smile size={20} style={{ color: theme.text, opacity: 0.6 }} />
+                    </button>
+                    {emojiOpen && (
+                      <div
+                        className="absolute bottom-full right-0 mb-3 z-20 p-2 rounded-xl shadow-lg grid grid-cols-8 gap-1"
+                        style={{ background: theme.surface, border: `1px solid ${theme.border}`, width: '272px' }}
+                      >
+                        {QUICK_EMOJI.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => insertEmoji(emoji)}
+                            className="text-xl rounded-lg"
+                            style={{ background: 'transparent', border: 'none', padding: '4px' }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={handleSendMessage}

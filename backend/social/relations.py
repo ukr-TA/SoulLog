@@ -104,3 +104,42 @@ def visible_author_filter(user):
     if not blocked:
         return Q()
     return ~Q(author_id__in=blocked)
+
+
+def _social_setting(user, key, default):
+    settings = getattr(user, "app_settings", None)
+    return (getattr(settings, "social", None) or {}).get(key, default)
+
+
+def can_request_connection(sender, recipient):
+    """
+    Whether `sender` may send `recipient` a connection request, honouring
+    the recipient's "Friend Requests" setting: everyone, friends of
+    friends (at least one mutual connection), or no one.
+
+    Settings.tsx offered this control from the start and nothing read it,
+    so "No One" still let anyone send a request. Returns
+    `(allowed, reason)`; the reason is shown to the sender and says only
+    that the request isn't accepted, not why.
+    """
+    preference = _social_setting(recipient, "friendRequests", "everyone")
+    if preference == "none":
+        return False, "This person isn't accepting connection requests."
+    if preference == "friends" and mutual_connection_count(sender, recipient) == 0:
+        return False, "This person only accepts requests from friends of their connections."
+    return True, None
+
+
+def accepts_followers(user):
+    """The "Follow System" setting: whether other people may follow `user`."""
+    return bool(_social_setting(user, "followSystem", True))
+
+
+def wants_suggestions(user):
+    """The "Connection Recommendations" setting: whether `user` sees suggestions."""
+    return bool(_social_setting(user, "connectionRecommendations", True))
+
+
+def shares_achievements(user):
+    """The "Achievement Sharing" setting: whether others see `user`'s badges."""
+    return bool(_social_setting(user, "achievementSharing", True))

@@ -29,6 +29,11 @@ interface ProfileFormProps {
   onDone?: () => void;
   /** Shown as "Skip for now" when provided. */
   onSkip?: () => void;
+  /**
+   * 'edit' when opened from Edit Profile: the way out is "Cancel", not
+   * the first-run "Skip for now".
+   */
+  mode?: 'onboarding' | 'edit';
 }
 
 /**
@@ -40,7 +45,6 @@ interface ProfileFormData {
   name: string;
   email: string;
   phone: string;
-  gender: string;
   title: string;
   location: string;
   about: string;
@@ -81,7 +85,90 @@ interface ButtonProps {
   type?: 'button' | 'submit' | 'reset';
 }
 
-const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, onSkip }: ProfileFormProps) => {
+/*
+ * These three live at module scope on purpose.
+ *
+ * They used to be declared inside SoulLogProfileForm. A component declared
+ * inside another component is a brand-new component on every render, so
+ * React threw away each <input> and built a fresh one after every
+ * keystroke — which is why typing one letter dropped the cursor out of
+ * the field and you had to click back in for the next. Declared out
+ * here they keep their identity, and the input keeps focus.
+ */
+const FormCard = ({ children, title, icon, theme }: FormCardProps & { theme: Theme }) => (
+  <div 
+    className="rounded-lg shadow border p-4 mb-4"
+    style={{ 
+      backgroundColor: theme.cardBg, 
+      borderColor: theme.border,
+      color: theme.text
+    }}
+  >
+    <div className="flex items-center gap-2 mb-4">
+      {React.cloneElement(icon, { className: "w-5 h-5", style: { color: theme.accent } })}
+      <h2 className="text-lg font-semibold">{title}</h2>
+    </div>
+    {children}
+  </div>
+);
+
+const Input = ({ label, value, onChange, type = "text", placeholder, rows, required = false, theme }: InputProps & { theme: Theme }) => (
+  <div className="mb-3">
+    <label className="block text-sm font-medium mb-1 opacity-90">
+      {label} {required && <span style={{ color: '#ff4757' }}>*</span>}
+    </label>
+    {type === 'textarea' ? (
+      <textarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows || 3}
+        required={required}
+        className="w-full p-2 rounded border resize-none focus:outline-none focus:ring-1 text-sm"
+        style={{ 
+          backgroundColor: theme.inputBg,
+          borderColor: theme.border,
+          color: theme.text
+        }}
+      />
+    ) : (
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        className="w-full p-2 rounded border focus:outline-none focus:ring-1 text-sm"
+        style={{ 
+          backgroundColor: theme.inputBg,
+          borderColor: theme.border,
+          color: theme.text
+        }}
+      />
+    )}
+  </div>
+);
+
+const Button = ({ children, variant = "primary", onClick, className = "", type = "button", theme }: ButtonProps & { theme: Theme }) => {
+  const variants: Record<ButtonVariant, React.CSSProperties> = {
+    primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
+    secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
+    outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` }
+  };
+  
+  return (
+    <button 
+      type={type}
+      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:scale-105 ${className}`}
+      style={variants[variant]}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+};
+
+const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, onSkip, mode = 'onboarding' }: ProfileFormProps) => {
   const [darkMode] = useState(darkModeProp ?? true);
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,7 +181,6 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
     name: '',
     email: '',
     phone: '',
-    gender: '',
     title: '',
     location: '',
     about: '',
@@ -132,12 +218,13 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
         (): Partial<JournalStats> => ({}),
       );
 
+      setTopicsText((profile.interests || []).join(', '));
       setFormData((current) => ({
         ...current,
         name: profile.name || '',
         email: profile.email || '',
         phone: profile.phone || '',
-        title: profile.current_focus || '',
+        title: profile.tagline || '',
         location: profile.location || '',
         about: profile.bio || '',
         currentFocus: profile.current_focus || '',
@@ -164,86 +251,25 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
   // renderable on its own, which is how it was originally written.
   const theme: Theme = { ...buildTheme(darkMode), ...(themeProp ?? {}) };
 
-  const FormCard = ({ children, title, icon }: FormCardProps) => (
-    <div 
-      className="rounded-lg shadow border p-4 mb-4"
-      style={{ 
-        backgroundColor: theme.cardBg, 
-        borderColor: theme.border,
-        color: theme.text
-      }}
-    >
-      <div className="flex items-center gap-2 mb-4">
-        {React.cloneElement(icon, { className: "w-5 h-5", style: { color: theme.accent } })}
-        <h2 className="text-lg font-semibold">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
-
-  const Input = ({ label, value, onChange, type = "text", placeholder, rows, required = false }: InputProps) => (
-    <div className="mb-3">
-      <label className="block text-sm font-medium mb-1 opacity-90">
-        {label} {required && <span style={{ color: '#ff4757' }}>*</span>}
-      </label>
-      {type === 'textarea' ? (
-        <textarea
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          rows={rows || 3}
-          required={required}
-          className="w-full p-2 rounded border resize-none focus:outline-none focus:ring-1 text-sm"
-          style={{ 
-            backgroundColor: theme.inputBg,
-            borderColor: theme.border,
-            color: theme.text
-          }}
-        />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          required={required}
-          className="w-full p-2 rounded border focus:outline-none focus:ring-1 text-sm"
-          style={{ 
-            backgroundColor: theme.inputBg,
-            borderColor: theme.border,
-            color: theme.text
-          }}
-        />
-      )}
-    </div>
-  );
-
-  const Button = ({ children, variant = "primary", onClick, className = "", type = "button" }: ButtonProps) => {
-    const variants: Record<ButtonVariant, React.CSSProperties> = {
-      primary: { backgroundColor: theme.accent, color: '#FFFFFF' },
-      secondary: { backgroundColor: theme.secondary, color: '#FFFFFF' },
-      outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` }
-    };
-    
-    return (
-      <button 
-        type={type}
-        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:scale-105 ${className}`}
-        style={variants[variant]}
-        onClick={onClick}
-      >
-        {children}
-      </button>
-    );
-  };
-
   // Generic over the field so the value has to match that field's type,
   // rather than every field accepting anything.
   const handleInputChange = <K extends keyof ProfileFormData>(field: K, value: ProfileFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  /**
+   * The interests box holds exactly what was typed.
+   *
+   * It used to be bound to `favoriteTopics.join(', ')` and to re-split
+   * the text into tags on every keystroke. That trimmed and dropped
+   * empties as you typed, so a trailing comma or space vanished the
+   * moment it was entered — you could not type "self care" or start a
+   * second interest. The raw text is kept as typed now, and turned into
+   * tags as it changes without being written back into the box.
+   */
+  const [topicsText, setTopicsText] = useState('');
   const handleTagsChange = (value: string) => {
+    setTopicsText(value);
     const tags = value.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag);
     setFormData((prev) => ({ ...prev, favoriteTopics: tags }));
   };
@@ -303,7 +329,8 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
           phone: formData.phone.trim(),
           location: formData.location.trim(),
           bio: formData.about.trim(),
-          currentFocus: (formData.currentFocus || formData.title).trim(),
+          tagline: formData.title.trim(),
+          currentFocus: formData.currentFocus.trim(),
           growthAreas: formData.growthAreas.trim(),
           values: formData.values.trim(),
           interests: formData.favoriteTopics,
@@ -330,7 +357,7 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold">Profile Preview</h1>
-            <Button onClick={togglePreview}>
+            <Button theme={theme} onClick={togglePreview}>
               Back to Form
             </Button>
           </div>
@@ -367,12 +394,6 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
                       <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.accent}15` }}>
                         <span>📧</span>
                         {formData.email}
-                      </div>
-                    )}
-                    {formData.gender && (
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.secondary}15` }}>
-                        <span>👤</span>
-                        {formData.gender}
                       </div>
                     )}
                   </div>
@@ -550,62 +571,51 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
 
         <form onSubmit={handleSubmit}>
           {/* Basic Profile Information */}
-          <FormCard title="Basic Information" icon={<User />}>
+          <FormCard theme={theme} title="Basic Information" icon={<User />}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
+                theme={theme}
                 label="Full Name"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 placeholder="Enter your full name"
                 required
               />
+              {/* Your sign-in email, shown but not editable here. This box
+                  used to accept edits and silently drop them: changing the
+                  address an account signs in with needs a confirmation
+                  step, which SoulLog doesn't have yet. */}
+              <div className="mb-3">
+                <label className="block text-sm font-medium mb-1 opacity-90">Email Address</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  readOnly
+                  aria-readonly="true"
+                  className="w-full p-2 rounded border text-sm"
+                  style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text, opacity: 0.7 }}
+                />
+                <p className="text-xs mt-1 opacity-60">This is the email you sign in with. It can't be changed here.</p>
+              </div>
               <Input
-                label="Email Address"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="your.email@example.com"
-                required
-              />
-              <Input
+                theme={theme}
                 label="Phone Number"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
                 placeholder="+1 (555) 123-4567"
               />
-              <div className="mb-3">
-                <label className="block text-sm font-medium mb-1 opacity-90">
-                  Gender
-                </label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => handleInputChange('gender', e.target.value)}
-                  className="w-full p-2 rounded border focus:outline-none focus:ring-1 text-sm"
-                  style={{ 
-                    backgroundColor: theme.inputBg,
-                    borderColor: theme.border,
-                    color: theme.text
-                  }}
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="non-binary">Non-binary</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
               <Input
+                theme={theme}
                 label="Title/Tagline"
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="e.g., Mindful Explorer & Growth Seeker"
-                required
               />
             </div>
             
             <Input
+              theme={theme}
               label="Location"
               value={formData.location}
               onChange={(e) => handleInputChange('location', e.target.value)}
@@ -613,6 +623,7 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
             />
             
             <Input
+              theme={theme}
               label="About Your Journey"
               type="textarea"
               rows={3}
@@ -624,21 +635,24 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
           </FormCard>
 
           {/* Journey Focus */}
-          <FormCard title="Your Journey Focus" icon={<Target />}>
+          <FormCard theme={theme} title="Your Journey Focus" icon={<Target />}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Input
+                theme={theme}
                 label="Current Focus"
                 value={formData.currentFocus}
                 onChange={(e) => handleInputChange('currentFocus', e.target.value)}
                 placeholder="e.g., Mindfulness & Creativity"
               />
               <Input
+                theme={theme}
                 label="Growth Areas"
                 value={formData.growthAreas}
                 onChange={(e) => handleInputChange('growthAreas', e.target.value)}
                 placeholder="e.g., Emotional Intelligence"
               />
               <Input
+                theme={theme}
                 label="Core Values"
                 value={formData.values}
                 onChange={(e) => handleInputChange('values', e.target.value)}
@@ -652,7 +666,7 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
           {/* Photos — the handler existed in this component from the
               start but nothing rendered a control for it, so there was no
               way to reach it. */}
-          <FormCard title="Photos" icon={<Upload />}>
+          <FormCard theme={theme} title="Photos" icon={<Upload />}>
             <div className="flex flex-wrap gap-4 items-center">
               <div className="flex items-center gap-3">
                 <div
@@ -671,7 +685,7 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
                     (formData.name || '?').slice(0, 1).toUpperCase()
                   )}
                 </div>
-                <Button variant="outline" type="button" onClick={() => handlePhotoUpload('profilePhoto')}>
+                <Button theme={theme} variant="outline" type="button" onClick={() => handlePhotoUpload('profilePhoto')}>
                   {formData.profilePhoto ? 'Change photo' : 'Add a photo'}
                 </Button>
               </div>
@@ -690,7 +704,7 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
                     <img src={formData.coverPhoto} alt="Your cover" className="w-full h-full object-cover" />
                   )}
                 </div>
-                <Button variant="outline" type="button" onClick={() => handlePhotoUpload('coverPhoto')}>
+                <Button theme={theme} variant="outline" type="button" onClick={() => handlePhotoUpload('coverPhoto')}>
                   {formData.coverPhoto ? 'Change cover' : 'Add a cover'}
                 </Button>
               </div>
@@ -701,10 +715,11 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
           </FormCard>
 
           {/* Interests */}
-          <FormCard title="Interests & Topics" icon={<Heart />}>
+          <FormCard theme={theme} title="Interests & Topics" icon={<Heart />}>
             <Input
+              theme={theme}
               label="Favorite Topics"
-              value={formData.favoriteTopics.join(', ')}
+              value={topicsText}
               onChange={(e) => handleTagsChange(e.target.value)}
               placeholder="mindfulness, creativity, relationships, growth, gratitude, nature"
             />
@@ -722,17 +737,17 @@ const SoulLogProfileForm = ({ theme: themeProp, darkMode: darkModeProp, onDone, 
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-            <Button variant="outline" onClick={togglePreview} type="button">
+            <Button theme={theme} variant="outline" onClick={togglePreview} type="button">
               <Eye className="w-4 h-4 mr-2" />
               Preview Profile
             </Button>
-            <Button type="submit" className="px-6 py-2">
+            <Button theme={theme} type="submit" className="px-6 py-2">
               <Save className="w-4 h-4 mr-2" />
               {saving ? 'Saving…' : 'Save Profile'}
             </Button>
             {onSkip && (
-              <Button variant="outline" type="button" onClick={onSkip}>
-                Skip for now
+              <Button theme={theme} variant="outline" type="button" onClick={onSkip}>
+                {mode === 'edit' ? 'Cancel' : 'Skip for now'}
               </Button>
             )}
           </div>

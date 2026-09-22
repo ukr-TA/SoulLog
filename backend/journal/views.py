@@ -165,7 +165,16 @@ class JournalListCreateView(generics.ListCreateAPIView):
         })
 
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        # An entry saved without saying who can see it gets the user's own
+        # default (Settings → Privacy → Journal Visibility), which is
+        # private unless they changed it. The profile setting uses the
+        # profile's vocabulary, where "public" is the journal's "community".
+        extra = {}
+        if "visibility" not in self.request.data:
+            profile = getattr(self.request.user, "profile", None)
+            default = getattr(profile, "journal_visibility", "private") or "private"
+            extra["visibility"] = {"public": "community"}.get(default, default)
+        serializer.save(owner=self.request.user, **extra)
 
         # Writing an entry can move the entry count and both streaks, and
         # nothing else. award_quietly never raises, so a badge problem

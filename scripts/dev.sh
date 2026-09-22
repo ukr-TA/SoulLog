@@ -38,6 +38,8 @@ trap cleanup INT TERM EXIT
   # shellcheck disable=SC1091
   source venv/bin/activate
   python manage.py migrate --noinput >/dev/null
+  # Give existing accounts any badges they've already earned (safe to repeat).
+  python manage.py award_badges >/dev/null 2>&1 || true
   exec python manage.py runserver 127.0.0.1:8000 2>&1 | awk '{ print "[api] " $0; fflush() }'
 ) &
 

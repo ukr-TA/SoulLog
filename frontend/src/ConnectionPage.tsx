@@ -19,7 +19,7 @@
  *             away from the data.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, UserPlus, Check, X, MessageCircle, MoreHorizontal, Users, Bell, Heart, Filter } from 'lucide-react';
 import { ApiError, del, get, post, type PublicUser } from './api';
 import { Avatar } from './ui';
@@ -182,7 +182,10 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
   };
 
   // Compact User Card Component
-  const CompactUserCard = ({ user, type }: UserCardProps) => (
+  // Called as a function rather than rendered as a component: declared
+  // inside this screen, a component is re-created on every render, and
+  // React would rebuild everything in it — losing focus and local state.
+  const renderCompactUserCard = ({ user, type }: UserCardProps) => (
     <div
       className="p-3 rounded-lg border transition-all duration-300 hover:shadow-md hover:scale-[1.02] cursor-pointer text-left"
       style={{
@@ -294,7 +297,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
   );
 
   // List View Component
-  const ListUserItem = ({ user, type }: UserCardProps) => (
+  const renderListUserItem = ({ user, type }: UserCardProps) => (
     <div
       className="flex items-center gap-4 p-3 rounded-lg border transition-all duration-300 hover:shadow-md"
       style={{
@@ -634,21 +637,17 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:!grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 !gap-3">
             {getCurrentData().map((user) => (
-              <CompactUserCard
-                key={user.id}
-                user={user}
-                type={getCurrentType()}
-              />
+              <Fragment key={user.id}>
+                {renderCompactUserCard({ user, type: getCurrentType() })}
+              </Fragment>
             ))}
           </div>
         ) : (
           <div className="space-y-3">
             {getCurrentData().map((user) => (
-              <ListUserItem
-                key={user.id}
-                user={user}
-                type={getCurrentType()}
-              />
+              <Fragment key={user.id}>
+                {renderListUserItem({ user, type: getCurrentType() })}
+              </Fragment>
             ))}
           </div>
         )}

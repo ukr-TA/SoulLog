@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
-  User, Lock, Bell, Shield, BookOpen, Users, Palette, Globe,
+  User, Lock, Bell, Shield, BookOpen, Users, Palette,
   ChevronRight, Moon, Sun, Mail, Phone,
   Download, Trash2, Eye, Settings,
-  ArrowLeft, Save, AlertTriangle, Check
+  ArrowLeft, Save, AlertTriangle, Check, Target, Calendar
 } from 'lucide-react';
 import { Preferences } from '@capacitor/preferences';
+import { applyFontSize, saveThemePreference } from './appearance';
 import { ApiError, del, get, type PublicUser } from './api';
 import type { Theme } from './theme';
 
 interface MessagePageProps {
   theme: Theme;
   darkMode?: boolean;
+  /** The app's real theme switch — see appearance.ts. */
+  setDarkMode?: (dark: boolean) => void;
+  /** Section to open on, e.g. 'privacy' from the gear in Whispers. */
+  initialSection?: string;
   isMobile?: boolean;
   setHideExtra: (hide: boolean) => void;
   setActiveTab: (tab: string) => void;
@@ -57,6 +62,10 @@ interface AppSettings {
     moodTracking: boolean;
     goalReminders: boolean;
     streakNotifications: boolean;
+    /** Entries per day the Dashboard's "Today's Goal" ring counts towards. */
+    dailyGoal?: number;
+    /** Entries per week for the Dashboard's weekly bar. */
+    weeklyGoal?: number;
   };
   social: {
     connectionRecommendations: boolean;
@@ -124,9 +133,78 @@ interface SettingItemProps {
 /** DRF field errors: `{ "current_password": ["Wrong password."] }`. */
 type FieldErrors = Record<string, string[] | undefined>;
 
-const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : MessagePageProps) => {
-  const [darkMode, setDarkMode] = useState(true);
-  const [activeSection, setActiveSection] = useState<SectionId>('profile');
+const Button = ({ children, variant = "primary", size = "md", className = "", onClick, disabled = false, theme }: ButtonProps & { theme: Theme }) => {
+  const variants: Record<ButtonVariant, React.CSSProperties> = {
+    primary: { backgroundColor: theme.accent, color: theme.text },
+    secondary: { backgroundColor: theme.secondary, color: theme.text  },
+    outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
+    danger: { backgroundColor: '#ff4757', color: theme.text  },
+    ghost: { backgroundColor: 'transparent', color: theme.text }
+  };
+  
+  const sizes: Record<ButtonSize, string> = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2'
+  };
+
+  return (
+    <button 
+      className={`rounded-lg flex items-center justify-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      style={variants[variant]}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Toggle = ({ enabled, onToggle, size = "md", theme }: ToggleProps & { theme: Theme }) => (
+  <button
+    onClick={onToggle}
+    className={`relative inline-flex items-center ${size === 'sm' ? 'h-5 w-9' : 'h-6 w-11'} rounded-full transition-colors duration-200 focus:outline-none`}
+    style={{ backgroundColor: enabled ? theme.secondary : '#6B7280' }}
+  >
+    <span
+      className={`inline-block ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} rounded-full bg-white transform transition-transform duration-200 ${
+        enabled ? (size === 'sm' ? 'translate-x-5' : 'translate-x-3') : '-translate-x-3'
+      }`}
+    />
+  </button>
+);
+
+const SettingItem = ({ icon, title, description, children, onClick, showChevron = false, theme }: SettingItemProps & { theme: Theme }) => (
+  <div 
+    className={`flex items-center justify-between p-4 rounded-lg transition-all`}
+    style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}
+    onClick={onClick}
+  >
+    <div className="flex items-center flex-1 gap-3">
+      {React.cloneElement(icon, { className: "w-5 h-5", style: { color: theme.accent } })}
+      <div className="flex-1">
+        <h4 className="font-medium">{title}</h4>
+        {description && <p className="text-sm opacity-60">{description}</p>}
+      </div>
+    </div>
+    <div className="flex items-center gap-2">
+      {children}
+      {showChevron && <ChevronRight className="w-4 h-4 opacity-60" />}
+    </div>
+  </div>
+);
+
+const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, darkMode = true, setDarkMode, initialSection } : MessagePageProps) => {
+  // The theme is the app's, not a copy held here: this switch used to flip
+  // a local value that nothing else read, so it never changed anything.
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode?.(next);
+    saveThemePreference(next);
+  };
+  const SECTION_IDS: SectionId[] = ['profile', 'privacy', 'notifications', 'journaling', 'social', 'appearance'];
+  const [activeSection, setActiveSection] = useState<SectionId>(
+    SECTION_IDS.includes(initialSection as SectionId) ? (initialSection as SectionId) : 'profile',
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
 
@@ -169,7 +247,9 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
   };
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [showMobileDetail, setShowMobileDetail] = useState(false);
+  // Export problems are shown under the button, not in an alert().
+  const [exportMessage, setExportMessage] = useState('');
+  const [showMobileDetail, setShowMobileDetail] = useState(Boolean(initialSection && initialSection !== 'profile'));
 
   // Password change form (previously had no state at all — the inputs
   // were uncontrolled and "Update Password" had no onClick)
@@ -228,7 +308,9 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
       defaultTemplate: 'gratitude',
       moodTracking: true,
       goalReminders: true,
-      streakNotifications: true
+      streakNotifications: true,
+      dailyGoal: 1,
+      weeklyGoal: 5
     },
     social: {
       connectionRecommendations: true,
@@ -298,10 +380,11 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
   };
 
   const handleExportData = async () => {
+    setExportMessage('');
     try {
       const response = await authFetch('/auth/export/');
       if (!response.ok) {
-        alert("Couldn't export your data right now. Please try again.");
+        setExportMessage("Couldn't export your data right now. Please try again.");
         return;
       }
       const data: unknown = await response.json();
@@ -312,8 +395,9 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
       a.download = 'soullog-export.json';
       a.click();
       URL.revokeObjectURL(url);
+      setExportMessage('Downloaded soullog-export.json — everything you have written and logged.');
     } catch {
-      alert('Could not reach the server. Check your connection and try again.');
+      setExportMessage("Couldn't reach the server. Check your connection and try again.");
     }
   };
 
@@ -390,65 +474,8 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
     }));
   };
 
-  const Button = ({ children, variant = "primary", size = "md", className = "", onClick, disabled = false }: ButtonProps) => {
-    const variants: Record<ButtonVariant, React.CSSProperties> = {
-      primary: { backgroundColor: theme.accent, color: theme.text },
-      secondary: { backgroundColor: theme.secondary, color: theme.text  },
-      outline: { backgroundColor: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}` },
-      danger: { backgroundColor: '#ff4757', color: theme.text  },
-      ghost: { backgroundColor: 'transparent', color: theme.text }
-    };
-    
-    const sizes: Record<ButtonSize, string> = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2'
-    };
 
-    return (
-      <button 
-        className={`rounded-lg flex items-center justify-center gap-2 font-medium transition-all duration-200 hover:shadow-lg hover:scale-101 ${sizes[size]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        style={variants[variant]}
-        onClick={onClick}
-        disabled={disabled}
-      >
-        {children}
-      </button>
-    );
-  };
 
-  const Toggle = ({ enabled, onToggle, size = "md" }: ToggleProps) => (
-    <button
-      onClick={onToggle}
-      className={`relative inline-flex items-center ${size === 'sm' ? 'h-5 w-9' : 'h-6 w-11'} rounded-full transition-colors duration-200 focus:outline-none`}
-      style={{ backgroundColor: enabled ? theme.secondary : '#6B7280' }}
-    >
-      <span
-        className={`inline-block ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} rounded-full bg-white transform transition-transform duration-200 ${
-          enabled ? (size === 'sm' ? 'translate-x-5' : 'translate-x-3') : '-translate-x-3'
-        }`}
-      />
-    </button>
-  );
-
-  const SettingItem = ({ icon, title, description, children, onClick, showChevron = false }: SettingItemProps) => (
-    <div 
-      className={`flex items-center justify-between p-4 rounded-lg transition-all`}
-      style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}
-      onClick={onClick}
-    >
-      <div className="flex items-center flex-1 gap-3">
-        {React.cloneElement(icon, { className: "w-5 h-5", style: { color: theme.accent } })}
-        <div className="flex-1">
-          <h4 className="font-medium">{title}</h4>
-          {description && <p className="text-sm opacity-60">{description}</p>}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {children}
-        {showChevron && <ChevronRight className="w-4 h-4 opacity-60" />}
-      </div>
-    </div>
-  );
 
   const sections: SettingsSection[] = [
     { id: 'profile', title: 'Profile & Account', icon: <User />, color: theme.accent },
@@ -524,7 +551,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
       </div>
 
       <div className="pt-4 space-y-3">
-        <Button 
+        <Button theme={theme} 
           variant="outline" 
           className="w-full"
           onClick={() => setShowPasswordChange(!showPasswordChange)}
@@ -566,18 +593,21 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
               <p className="text-sm" style={{ color: theme.secondary }}>{passwordChangeSuccess}</p>
             )}
             <div className="flex gap-2">
-              <Button variant="primary" size="sm" onClick={handleUpdatePassword}>Update Password</Button>
-              <Button variant="ghost" size="sm" onClick={() => setShowPasswordChange(false)}>Cancel</Button>
+              <Button theme={theme} variant="primary" size="sm" onClick={handleUpdatePassword}>Update Password</Button>
+              <Button theme={theme} variant="ghost" size="sm" onClick={() => setShowPasswordChange(false)}>Cancel</Button>
             </div>
           </div>
         )}
 
-        <Button variant="outline" className="w-full" onClick={handleExportData}>
+        <Button theme={theme} variant="outline" className="w-full" onClick={handleExportData}>
           <Download className="w-4 h-4" />
           Export My Data
         </Button>
+        {exportMessage && (
+          <p role="status" className="text-sm" style={{ color: theme.text, opacity: 0.8 }}>{exportMessage}</p>
+        )}
 
-        <Button 
+        <Button theme={theme} 
           variant="danger" 
           className="w-full"
           onClick={handleDeleteAccount}
@@ -605,8 +635,8 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
               <p className="text-sm mb-3" style={{ color: '#ff4757' }}>{deleteError}</p>
             )}
             <div className="flex gap-2">
-              <Button variant="danger" size="sm" onClick={handleDeleteAccount}>Yes, Delete</Button>
-              <Button variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}>Cancel</Button>
+              <Button theme={theme} variant="danger" size="sm" onClick={handleDeleteAccount}>Yes, Delete</Button>
+              <Button theme={theme} variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}>Cancel</Button>
             </div>
           </div>
         )}
@@ -616,7 +646,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
 
   const renderPrivacySettings = () => (
     <div className="space-y-2">
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Eye />}
         title="Profile Visibility"
         description="Who can see your profile"
@@ -633,7 +663,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<BookOpen />}
         title="Journal Visibility"
         description="Default visibility for new journals"
@@ -650,23 +680,23 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Mail />}
         title="Show Email"
         description="Display email on profile"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.privacy.showEmail}
           onToggle={() => updateSetting('privacy', 'showEmail', !settings.privacy.showEmail)}
         />
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Phone />}
         title="Show Phone"
         description="Display phone number on profile"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.privacy.showPhone}
           onToggle={() => updateSetting('privacy', 'showPhone', !settings.privacy.showPhone)}
         />
@@ -676,18 +706,18 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
           leaving people to discover it. Turning this on is what starts
           any recording at all: with it off, nobody is told you looked at
           their profile and nobody who looks at yours is recorded. */}
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Eye />}
         title="Profile Views"
         description="See who viewed your profile — and let them see when you view theirs. Off for both when this is off."
       >
-        <Toggle
+        <Toggle theme={theme}
           enabled={settings.privacy.showProfileViews}
           onToggle={() => updateSetting('privacy', 'showProfileViews', !settings.privacy.showProfileViews)}
         />
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
         title="Allow Messages"
         description="Who can send you messages"
@@ -704,12 +734,12 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
         title="Mentoring Available"
         description="Show as available for mentoring"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.privacy.mentorAvailable}
           onToggle={() => updateSetting('privacy', 'mentorAvailable', !settings.privacy.mentorAvailable)}
         />
@@ -719,67 +749,45 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
 
   const renderNotificationSettings = () => (
     <div className="space-y-4">
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Bell />}
-        title="Push Notifications"
-        description="Receive notifications on your device"
+        title="Notifications"
+        description="Everything in your notification bell. Off means none at all"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.notifications.pushEnabled}
           onToggle={() => updateSetting('notifications', 'pushEnabled', !settings.notifications.pushEnabled)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<Mail />}
-        title="Email Notifications"
-        description="Receive notifications via email"
-      >
-        <Toggle 
-          enabled={settings.notifications.emailEnabled}
-          onToggle={() => updateSetting('notifications', 'emailEnabled', !settings.notifications.emailEnabled)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        icon={<BookOpen />}
-        title="Journal Reminders"
-        description="Daily reminders to write in your journal"
-      >
-        <Toggle 
-          enabled={settings.notifications.journalReminder}
-          onToggle={() => updateSetting('notifications', 'journalReminder', !settings.notifications.journalReminder)}
-        />
-      </SettingItem>
-
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
         title="Social Interactions"
         description="Likes, comments, and follows"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.notifications.socialInteractions}
           onToggle={() => updateSetting('notifications', 'socialInteractions', !settings.notifications.socialInteractions)}
         />
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Settings />}
         title="Achievements"
         description="New badges and milestones"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.notifications.achievements}
           onToggle={() => updateSetting('notifications', 'achievements', !settings.notifications.achievements)}
         />
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Mail />}
         title="Weekly Digest"
         description="Summary of your week's progress"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.notifications.weeklyDigest}
           onToggle={() => updateSetting('notifications', 'weeklyDigest', !settings.notifications.weeklyDigest)}
         />
@@ -789,18 +797,51 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
 
   const renderJournalingSettings = () => (
     <div className="space-y-4">
-      <SettingItem
+      {/* The two numbers the Dashboard's goal ring and weekly bar measure
+          against. They used to be a fixed "2 of 3" and "3 of 5" that no
+          setting could change. */}
+      <SettingItem theme={theme}
+        icon={<Target />}
+        title="Daily Goal"
+        description="Journal entries per day"
+      >
+        <select
+          value={settings.journaling.dailyGoal ?? 1}
+          onChange={(e) => updateSetting('journaling', 'dailyGoal', Number(e.target.value))}
+          className="px-3 py-1 rounded text-sm border"
+          style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
+        >
+          {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </SettingItem>
+
+      <SettingItem theme={theme}
+        icon={<Calendar />}
+        title="Weekly Goal"
+        description="Journal entries per week"
+      >
+        <select
+          value={settings.journaling.weeklyGoal ?? 5}
+          onChange={(e) => updateSetting('journaling', 'weeklyGoal', Number(e.target.value))}
+          className="px-3 py-1 rounded text-sm border"
+          style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
+        >
+          {[1, 2, 3, 4, 5, 7, 10, 14].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </SettingItem>
+
+      <SettingItem theme={theme}
         icon={<Save />}
         title="Auto-Save"
         description="Automatically save drafts while writing"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.journaling.autoSave}
           onToggle={() => updateSetting('journaling', 'autoSave', !settings.journaling.autoSave)}
         />
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<BookOpen />}
         title="Default Template"
         description="Template for new journal entries"
@@ -819,77 +860,34 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Settings />}
         title="Mood Tracking"
         description="Track your mood with each entry"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.journaling.moodTracking}
           onToggle={() => updateSetting('journaling', 'moodTracking', !settings.journaling.moodTracking)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<Settings />}
-        title="Goal Reminders"
-        description="Reminders about your personal goals"
-      >
-        <Toggle 
-          enabled={settings.journaling.goalReminders}
-          onToggle={() => updateSetting('journaling', 'goalReminders', !settings.journaling.goalReminders)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        icon={<Settings />}
-        title="Streak Notifications"
-        description="Celebrate your writing streaks"
-      >
-        <Toggle 
-          enabled={settings.journaling.streakNotifications}
-          onToggle={() => updateSetting('journaling', 'streakNotifications', !settings.journaling.streakNotifications)}
-        />
-      </SettingItem>
     </div>
   );
 
   const renderSocialSettings = () => (
     <div className="space-y-4">
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
         title="Connection Recommendations"
         description="Get suggested connections based on your interests and goals"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.social.connectionRecommendations}
           onToggle={() => updateSetting('social', 'connectionRecommendations', !settings.social.connectionRecommendations)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<Settings />}
-        title="Activity Sharing"
-        description="Automatically share achievements, milestones, and journal streaks"
-      >
-        <Toggle 
-          enabled={settings.social.activitySharing}
-          onToggle={() => updateSetting('social', 'activitySharing', !settings.social.activitySharing)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        icon={<Bell />}
-        title="Mention Notifications"
-        description="Get notified when someone mentions you in comments or posts"
-      >
-        <Toggle 
-          enabled={settings.social.mentionNotifications}
-          onToggle={() => updateSetting('social', 'mentionNotifications', !settings.social.mentionNotifications)}
-        />
-      </SettingItem>
-
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
         title="Friend Requests"
         description="Who can send you friend/connection requests"
@@ -906,89 +904,45 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Eye />}
         title="Online Status"
         description="Show when you're active on SoulLog to your connections"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.social.onlineStatus}
           onToggle={() => updateSetting('social', 'onlineStatus', !settings.social.onlineStatus)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<BookOpen />}
-        title="Journal Sharing"
-        description="Allow sharing your journal entries with friends and community"
-      >
-        <Toggle 
-          enabled={settings.social.journalSharing}
-          onToggle={() => updateSetting('social', 'journalSharing', !settings.social.journalSharing)}
-        />
-      </SettingItem>
-
-      <SettingItem
-        icon={<Users />}
-        title="Community Groups"
-        description="Join and participate in mindfulness and journaling communities"
-      >
-        <Toggle 
-          enabled={settings.social.communityJoining}
-          onToggle={() => updateSetting('social', 'communityJoining', !settings.social.communityJoining)}
-        />
-      </SettingItem>
-
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Settings />}
-        title="Inspiration Feed"
-        description="See inspiring quotes, stories, and posts from the community"
+        title="Daily Inspiration"
+        description="Show a quote of the day on your dashboard"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.social.inspirationFeed}
           onToggle={() => updateSetting('social', 'inspirationFeed', !settings.social.inspirationFeed)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<Eye />}
-        title="Public Profile"
-        description="Make your profile discoverable to help others find you"
-      >
-        <Toggle 
-          enabled={settings.social.publicProfile}
-          onToggle={() => updateSetting('social', 'publicProfile', !settings.social.publicProfile)}
-        />
-      </SettingItem>
-
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Users />}
-        title="Follow System"
-        description="Allow others to follow your public journal entries and updates"
+        title="Allow Followers"
+        description="Let others follow you to see what you share with the community"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.social.followSystem}
           onToggle={() => updateSetting('social', 'followSystem', !settings.social.followSystem)}
         />
       </SettingItem>
 
-      <SettingItem
-        icon={<BookOpen />}
-        title="Group Discussions"
-        description="Participate in topic-based discussions and Q&A sessions"
-      >
-        <Toggle 
-          enabled={settings.social.groupDiscussions}
-          onToggle={() => updateSetting('social', 'groupDiscussions', !settings.social.groupDiscussions)}
-        />
-      </SettingItem>
-
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Settings />}
-        title="Achievement Sharing"
-        description="Share your badges, streaks, and milestones with the community"
+        title="Show My Badges"
+        description="Let others see the badges on your profile"
       >
-        <Toggle 
+        <Toggle theme={theme} 
           enabled={settings.social.achievementSharing}
           onToggle={() => updateSetting('social', 'achievementSharing', !settings.social.achievementSharing)}
         />
@@ -996,7 +950,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
 
       {/* Social Management Options */}
       <div className="pt-4 border-t space-y-3" style={{ borderColor: theme.border }}>
-        <SettingItem
+        <SettingItem theme={theme}
           icon={<Users />}
           title="Blocked Users"
           description={
@@ -1037,7 +991,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
           </div>
         )}
 
-        <SettingItem
+        <SettingItem theme={theme}
           icon={<BookOpen />}
           title="Saved Posts"
           description={
@@ -1056,26 +1010,31 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
     <div className="space-y-4">
       {/* Only show dark mode toggle on mobile */}
       <div className="block md:hidden">
-        <SettingItem
+        <SettingItem theme={theme}
           icon={darkMode ? <Moon /> : <Sun />}
           title="Dark Mode"
           description="Switch between light and dark themes"
         >
-          <Toggle 
+          <Toggle theme={theme} 
             enabled={darkMode}
-            onToggle={() => setDarkMode(!darkMode)}
+            onToggle={toggleDarkMode}
           />
         </SettingItem>
       </div>
 
-      <SettingItem
+      <SettingItem theme={theme}
         icon={<Settings />}
         title="Font Size"
         description="Adjust text size for better readability"
       >
         <select 
           value={settings.appearance.fontSize}
-          onChange={(e) => updateSetting('appearance', 'fontSize', e.target.value)}
+          onChange={(e) => {
+            // Applied immediately so the change is visible before saving;
+            // saved with the rest when you press Save.
+            applyFontSize(e.target.value);
+            updateSetting('appearance', 'fontSize', e.target.value);
+          }}
           className="px-3 py-1 rounded text-sm border"
           style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
         >
@@ -1085,29 +1044,14 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
         </select>
       </SettingItem>
 
-      <SettingItem
-        icon={<Globe />}
-        title="Language"
-        description="Choose your preferred language"
-      >
-        <select 
-          value={settings.appearance.language}
-          onChange={(e) => updateSetting('appearance', 'language', e.target.value)}
-          className="px-3 py-1 rounded text-sm border"
-          style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-        >
-          <option value="en">English</option>
-          <option value="es">Español</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="pt">Português</option>
-        </select>
-      </SettingItem>
     </div>
   );
 
   // Mobile Settings List Component
-  const MobileSettingsList = () => (
+  // Called as functions below, not rendered as <MobileSettingsList />:
+  // declared in here, a component would be re-created on every render and
+  // React would rebuild everything inside it, text fields included.
+  const renderMobileSettingsList = () => (
     <div className="space-y-2">
       {sections.map((section) => (
         <div
@@ -1151,7 +1095,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
   );
 
   // Mobile Detail View Component
-  const MobileDetailView = () => {
+  const renderMobileDetailView = () => {
     return (
       <>
         {/* Mobile Header with Back Button */}
@@ -1223,11 +1167,11 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
               
               {/* Mobile Settings List - Fixed, non-scrollable */}
               <div className="flex-1 flex flex-col p-4 overflow-y-auto">
-                <MobileSettingsList />
+                {renderMobileSettingsList()}
               </div>
             </>
           ) : (
-            <MobileDetailView />
+            renderMobileDetailView()
           )
       ) : (
         /* Desktop View */
@@ -1250,7 +1194,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab } : 
                   <span className="text-sm font-medium">Saved!</span>
                 </div>
               )}
-              <Button onClick={handleSave} size="sm">
+              <Button theme={theme} onClick={handleSave} size="sm">
                 <Save className="w-4 h-4" />
                 Save Changes
               </Button>

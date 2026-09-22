@@ -283,14 +283,22 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
             transition: 'all 0.3s ease',
             overflow: 'hidden'
           }}>
-            {/* Logo Section */}
-            <div style={{
+            {/* Logo Section — like most sites, the logo takes you home. */}
+            <div
+              role="link"
+              tabIndex={0}
+              aria-label="SoulLog — go to Dashboard"
+              title="Go to Dashboard"
+              onClick={() => openTab(ACTIVE_TAB.OVERVIEW)}
+              onKeyDown={(e) => { if (e.key === 'Enter') openTab(ACTIVE_TAB.OVERVIEW); }}
+              style={{
               display: 'flex',
               alignItems: 'center',
               gap: '1rem',
               marginBottom: '2.5rem',
               marginTop: '1.5rem',
-              padding: '0rem 1rem'
+              padding: '0rem 1rem',
+              cursor: 'pointer'
             }}>
               <img 
                 src={SoulLog}
@@ -589,11 +597,18 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               top: 0,
             }}>
               
-            {/* Logo Section */}
-            <div style={{
+            {/* Logo Section — takes you home. */}
+            <div
+              role="link"
+              tabIndex={0}
+              aria-label="SoulLog — go to Dashboard"
+              onClick={() => openTab(ACTIVE_TAB.OVERVIEW)}
+              onKeyDown={(e) => { if (e.key === 'Enter') openTab(ACTIVE_TAB.OVERVIEW); }}
+              style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.7rem',
+              cursor: 'pointer',
             }}>
               <img 
                 src={SoulLog}

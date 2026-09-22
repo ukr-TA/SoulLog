@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   User, Lock, Bell, Shield, BookOpen, Users, Palette,
   ChevronRight, Mail, Phone,
-  Download, Trash2, Eye, Settings, Database, HelpCircle, LogOut, Keyboard,
+  Download, Trash2, Eye, Settings, Database, HelpCircle, LogOut,
   ArrowLeft, Save, AlertTriangle, Check, Target, Calendar
 } from 'lucide-react';
 import { Preferences } from '@capacitor/preferences';
 import { applyFontSize } from './appearance';
 import { ApiError, del, get, type PublicUser } from './api';
 import { logOut } from './session';
+import HelpCenter from './HelpCenter';
 import { goBack, navState, pushNav } from './nav';
 import type { Theme } from './theme';
 
@@ -737,31 +738,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   );
 
   const renderHelpSettings = () => (
-    <div className="space-y-2">
-      <SettingItem theme={theme}
-        icon={<Mail />}
-        title="Contact support"
-        description="Questions, bugs or ideas — write to support@soullog.app"
-      >
-        <a
-          href="mailto:support@soullog.app?subject=SoulLog%20support"
-          className="px-3 py-1.5 rounded-lg text-sm font-medium"
-          style={{ backgroundColor: theme.accent, color: theme.background }}
-        >
-          Email us
-        </a>
-      </SettingItem>
-      <SettingItem theme={theme}
-        icon={<Lock />}
-        title="Forgot your password?"
-        description="Sign out, then choose “Forgot password?” on the sign-in screen for a reset link."
-      />
-      <SettingItem theme={theme}
-        icon={<Keyboard />}
-        title="Dashboard shortcuts"
-        description="V view journal · T today's goal · P prompt of the day · M mood check-in"
-      />
-    </div>
+    <HelpCenter theme={theme} onOpenSection={handleMobileSectionClick} />
   );
 
   const renderPrivacySettings = () => (
@@ -1193,7 +1170,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
               {section.id === 'social' && 'Community & connections'}
               {section.id === 'appearance' && 'Text size'}
               {section.id === 'data' && 'Export or delete your account'}
-              {section.id === 'help' && 'Contact support & tips'}
+              {section.id === 'help' && 'FAQ, contact & report a problem'}
             </p>
           </div>
 
@@ -1239,7 +1216,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
               {activeSection === 'social' && 'Connect with mindful community and share your journey'}
               {activeSection === 'appearance' && 'Adjust how text is displayed'}
               {activeSection === 'data' && 'Download everything, or delete your account'}
-              {activeSection === 'help' && 'Get in touch, and a few tips'}
+              {activeSection === 'help' && 'Answers, shortcuts, and how to reach us'}
             </p>
           </div>
         </div>
@@ -1465,7 +1442,7 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
                           {activeSection === 'social' && 'Connect with the mindful community and share your journey'}
                           {activeSection === 'appearance' && 'Adjust how text is displayed'}
                           {activeSection === 'data' && 'Download everything, or delete your account'}
-                          {activeSection === 'help' && 'Get in touch, and a few tips'}
+                          {activeSection === 'help' && 'Answers, shortcuts, and how to reach us'}
                         </p>
                       </div>
                     </div>

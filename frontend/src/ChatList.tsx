@@ -65,6 +65,8 @@ const ChatList = ({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [sheetFor, setSheetFor] = useState<ChatRow | null>(null);
+  // Where the little menu opens: next to the finger / pointer / ⋯.
+  const [anchor, setAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [confirm, setConfirm] = useState<'delete' | 'block' | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -109,8 +111,9 @@ const ChatList = ({
   // The finger lifting after a long press sends a click to whatever is
   // now under it — the sheet's backdrop. That click mustn't close it.
   const openedAt = useRef(0);
-  const openSheet = (row: ChatRow) => {
+  const openSheet = (row: ChatRow, x: number, y: number) => {
     openedAt.current = Date.now();
+    setAnchor({ x, y });
     setConfirm(null);
     setSheetFor(row);
     if (navigator.vibrate) navigator.vibrate(12);
@@ -229,14 +232,15 @@ const ChatList = ({
           onOpen(row.id);
         }}
         onKeyDown={(event) => { if (event.key === 'Enter') onOpen(row.id); }}
-        onContextMenu={(event) => { event.preventDefault(); openSheet(row); }}
+        onContextMenu={(event) => { event.preventDefault(); openSheet(row, event.clientX, event.clientY); }}
         onTouchStart={(event) => {
           pressed.current = false;
           startPoint.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
           window.clearTimeout(pressTimer.current);
           pressTimer.current = window.setTimeout(() => {
             pressed.current = true;
-            openSheet(row);
+            const at = startPoint.current;
+            openSheet(row, at?.x ?? 0, at?.y ?? 0);
           }, LONG_PRESS_MS);
         }}
         onTouchMove={(event) => {
@@ -310,7 +314,11 @@ const ChatList = ({
 
         {/* A mouse gets a visible way in, too */}
         <button
-          onClick={(event) => { event.stopPropagation(); openSheet(row); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            const box = event.currentTarget.getBoundingClientRect();
+            openSheet(row, box.right, box.bottom + 4);
+          }}
           aria-label={`Options for ${row.name}`}
           title="Options"
           className="flex-shrink-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex"
@@ -327,29 +335,21 @@ const ChatList = ({
     label: string,
     onClick: () => void,
     danger = false,
-    hint?: string,
   ) => (
     <button
+      role="menuitem"
       onClick={onClick}
       disabled={busy}
-      className="w-full flex items-center gap-3 text-left transition-colors"
+      className="w-full flex items-center gap-2.5 text-left transition-colors"
       style={{
-        padding: '0.85rem 1rem', borderRadius: '0.8rem', background: 'transparent', border: 'none',
-        color: danger ? theme.error : theme.text,
+        padding: '0.5rem 0.7rem', borderRadius: '0.55rem', background: 'transparent', border: 'none',
+        color: danger ? theme.error : theme.text, fontSize: '0.84rem', whiteSpace: 'nowrap',
       }}
-      onMouseEnter={(event) => { event.currentTarget.style.backgroundColor = `${danger ? theme.error : theme.text}12`; }}
+      onMouseEnter={(event) => { event.currentTarget.style.backgroundColor = `${danger ? theme.error : theme.accent}1a`; }}
       onMouseLeave={(event) => { event.currentTarget.style.backgroundColor = 'transparent'; }}
     >
-      <span
-        className="flex items-center justify-center flex-shrink-0"
-        style={{ width: '2.2rem', height: '2.2rem', borderRadius: '9999px', backgroundColor: danger ? `${theme.error}1f` : `${theme.accent}1a`, color: danger ? theme.error : theme.accent }}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium">{label}</span>
-        {hint && <span className="block text-xs opacity-60">{hint}</span>}
-      </span>
+      <span className="flex flex-shrink-0" style={{ color: danger ? theme.error : theme.accent }}>{icon}</span>
+      {label}
     </button>
   );
 
@@ -458,68 +458,60 @@ const ChatList = ({
         )}
       </div>
 
-      {/* Options sheet */}
+      {/* Options — a small menu right where you pressed */}
       {sheetFor && (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Options for ${sheetFor.name}`}
           onClick={() => { if (Date.now() - openedAt.current > 600) setSheetFor(null); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onContextMenu={(event) => { event.preventDefault(); setSheetFor(null); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.12)' }}
         >
           <div
+            role="menu"
+            aria-label={`Options for ${sheetFor.name}`}
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: '100%', maxWidth: '26rem', background: theme.surface, color: theme.text,
-              borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', border: `1px solid ${theme.border}`,
-              padding: '0.6rem 0.75rem calc(0.9rem + env(safe-area-inset-bottom))',
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.35)',
+              position: 'fixed',
+              left: Math.max(8, Math.min(anchor.x - (anchor.x > window.innerWidth / 2 ? 196 : 0), window.innerWidth - 196 - 8)),
+              top: anchor.y + 214 > window.innerHeight - 8 ? Math.max(8, anchor.y - 214) : anchor.y,
+              width: 196,
+              padding: '0.3rem',
+              borderRadius: '0.85rem',
+              background: theme.surfaceElevated || theme.surface,
+              border: `1px solid ${theme.border}`,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+              animation: 'chatmenu-in 0.14s ease-out',
             }}
           >
-            <div style={{ width: '2.5rem', height: '4px', borderRadius: '2px', background: theme.border, margin: '0 auto 0.75rem' }} />
-            <div className="flex items-center gap-3 px-2 pb-3 mb-1" style={{ borderBottom: `1px solid ${theme.border}` }}>
-              <Avatar user={sheetFor} theme={theme} size={40} />
-              <div className="min-w-0 text-left">
-                <p className="font-semibold truncate">{sheetFor.name}</p>
-                {sheetFor.username && <p className="text-xs opacity-60 truncate">@{sheetFor.username}</p>}
-              </div>
-            </div>
             {!sheetFor.archived && option(
               sheetFor.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />,
-              sheetFor.pinned ? 'Unpin chat' : 'Pin chat',
+              sheetFor.pinned ? 'Unpin' : 'Pin',
               () => togglePin(sheetFor),
-              false,
-              sheetFor.pinned ? undefined : 'Keep it at the top',
             )}
             {option(
               sheetFor.muted ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />,
-              sheetFor.muted ? 'Unsilence' : 'Silence chat',
+              sheetFor.muted ? 'Unsilence' : 'Silence',
               () => toggleMute(sheetFor),
-              false,
-              sheetFor.muted ? undefined : 'No badge or sound for new messages',
             )}
             {option(
               sheetFor.archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />,
-              sheetFor.archived ? 'Unarchive chat' : 'Archive chat',
+              sheetFor.archived ? 'Unarchive' : 'Archive',
               () => toggleArchive(sheetFor),
-              false,
-              sheetFor.archived ? undefined : 'Move it out of your main list',
             )}
+            <div style={{ height: 1, margin: '0.25rem 0.4rem', background: theme.border }} />
             {sheetFor.userId && option(
               <Ban className="w-4 h-4" />,
-              confirm === 'block' ? `Tap again to block ${first}` : `Block ${first}`,
+              confirm === 'block' ? 'Tap again to block' : `Block ${first}`,
               () => block(sheetFor),
               true,
-              confirm === 'block' ? 'You won’t see each other’s messages or posts' : undefined,
             )}
             {option(
               <Trash2 className="w-4 h-4" />,
               confirm === 'delete' ? 'Tap again to delete' : 'Delete chat',
               () => deleteChat(sheetFor),
               true,
-              confirm === 'delete' ? `Clears it for you — ${first} keeps their copy` : undefined,
             )}
           </div>
+          <style>{'@keyframes chatmenu-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }'}</style>
         </div>
       )}
     </div>

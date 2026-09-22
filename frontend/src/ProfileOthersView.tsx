@@ -422,9 +422,9 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
 
   const ProfileCard = ({ children, className = "" }: ProfileCardProps) => (
     <div 
-      className={`rounded-2xl shadow-lg border p-5 mb-5 transition-all duration-300 text-left ${className}`}
+      className={`rounded-xl shadow-lg border p-5 mb-5 transition-all duration-300 text-left ${className}`}
       style={{ 
-        backgroundColor: theme.cardBg, 
+        backgroundColor: theme.surface, 
         borderColor: theme.border,
         color: theme.text
       }}
@@ -515,7 +515,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
         {!userData.restricted && <>
         
         {/* Two columns with room (profile + side panel), one on a phone. */}
-        <div className="grid" style={{ gap: '1.25rem', alignItems: 'start' }}>
+        <div className="grid" style={{ columnGap: '1.25rem', rowGap: 0, alignItems: 'start' }}>
           {/* Main Content */}
           <div className="min-w-0">
             {/* Hero Section */}
@@ -527,8 +527,8 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                   style={{
                     height: '8.5rem',
                     backgroundImage: userData.coverUrl
-                      ? `linear-gradient(to bottom, transparent 45%, ${theme.cardBg}), url(${userData.coverUrl})`
-                      : `linear-gradient(135deg, ${theme.secondary}40, ${theme.accent}33)`,
+                      ? `linear-gradient(to bottom, transparent 45%, ${theme.surface}), url(${userData.coverUrl})`
+                      : `linear-gradient(135deg, ${theme.accent}40, ${theme.secondary}33)`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                   }}
@@ -540,11 +540,11 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                     <div
                       className="rounded-full flex items-center justify-center font-bold relative overflow-hidden"
                       style={{
-                        width: '6rem', height: '6rem', fontSize: '2rem',
-                        backgroundColor: theme.secondary,
-                        border: `4px solid ${theme.cardBg}`,
-                        color: '#FFFFFF',
-                        boxShadow: `0 8px 32px ${theme.secondary}4d`,
+                        width: '5.5rem', height: '5.5rem', fontSize: '1.9rem',
+                        backgroundColor: theme.accent,
+                        border: `4px solid ${theme.surface}`,
+                        color: theme.background,
+                        boxShadow: `0 8px 32px ${theme.accent}4d`,
                       }}
                     >
                       {(userData.name || '?').trim().charAt(0).toUpperCase() || '?'}
@@ -561,7 +561,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                       <span
                         aria-label="Online now"
                         className="absolute rounded-full"
-                        style={{ right: '0.3rem', bottom: '0.3rem', width: '1.1rem', height: '1.1rem', backgroundColor: '#4ECDC4', border: `3px solid ${theme.cardBg}` }}
+                        style={{ right: '0.3rem', bottom: '0.3rem', width: '1.1rem', height: '1.1rem', backgroundColor: '#4ECDC4', border: `3px solid ${theme.surface}` }}
                       />
                     )}
                   </div>
@@ -569,14 +569,14 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
 
                 {/* Who they are */}
                 <div className="text-center mt-3">
-                  <h1 className="font-semibold leading-tight" style={{ fontSize: '1.5rem', margin: 0 }}>{userData.name}</h1>
+                  <h1 className="font-semibold leading-tight" style={{ fontSize: '1.4rem', margin: 0 }}>{userData.name}</h1>
                   {userData.username && <p className="text-sm opacity-60 mt-0.5">@{userData.username}</p>}
                   {userData.title && <p className="text-sm opacity-90 mt-2 px-4">{userData.title}</p>}
 
                   {/* Where you stand with them, in words */}
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs">
                     {userData.relationship.state === 'accepted' && (
-                      <span className="flex items-center gap-1 font-medium" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', backgroundColor: `${theme.secondary}22`, color: theme.secondary }}>
+                      <span className="flex items-center gap-1 font-medium" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', backgroundColor: `${theme.accent}1f`, color: theme.accent }}>
                         <UserCheck className="w-3.5 h-3.5" /> Friends
                       </span>
                     )}
@@ -610,7 +610,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                 {/* Numbers */}
                 <div
                   className="flex mt-4 rounded-xl"
-                  style={{ backgroundColor: `${theme.secondary}10`, border: `1px solid ${theme.secondary}26` }}
+                  style={{ backgroundColor: `${theme.accent}0f`, border: `1px solid ${theme.accent}26` }}
                 >
                   {[
                     { value: userData.followers, label: userData.followers === 1 ? 'Follower' : 'Followers' },
@@ -620,9 +620,9 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                     <div
                       key={item.label}
                       className="text-center py-3"
-                      style={{ flex: 1, minWidth: 0, borderLeft: index ? `1px solid ${theme.secondary}26` : 'none' }}
+                      style={{ flex: 1, minWidth: 0, borderLeft: index ? `1px solid ${theme.accent}26` : 'none' }}
                     >
-                      <div className="text-lg font-semibold" style={{ color: theme.secondary }}>{item.value.toLocaleString()}</div>
+                      <div className="text-lg font-semibold" style={{ color: theme.accent }}>{item.value.toLocaleString()}</div>
                       <div className="text-xs opacity-65">{item.label}</div>
                     </div>
                   ))}
@@ -678,10 +678,10 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                           height: action.primary ? '3.5rem' : '2.75rem',
                           padding: 0,
                           flexShrink: 0,
-                          backgroundColor: action.primary ? theme.secondary : action.active ? `${theme.accent}33` : `${theme.accent}14`,
-                          color: action.primary ? '#FFFFFF' : theme.accent,
+                          backgroundColor: action.primary ? theme.accent : action.active ? `${theme.accent}33` : `${theme.accent}14`,
+                          color: action.primary ? theme.background : theme.accent,
                           border: action.primary ? 'none' : `1px solid ${theme.accent}40`,
-                          boxShadow: action.primary ? `0 6px 20px ${theme.secondary}55` : 'none',
+                          boxShadow: action.primary ? `0 6px 20px ${theme.accent}55` : 'none',
                         }}
                       >
                         {action.icon}
@@ -745,9 +745,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             {(userData.about || userData.currentFocus || userData.growthAreas || userData.values) && (
             <ProfileCard>
               <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
-                  <Target className="w-4 h-4" style={{ color: theme.accent }} />
-                </span>
+                <Target className="w-5 h-5" style={{ color: theme.accent }} />
                 About {userData.name.split(' ')[0]}
               </h3>
               {userData.about && (
@@ -776,9 +774,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             <ProfileCard>
               <div className="flex items-center justify-between gap-3">
                 <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.secondary}22` }}>
-                  <BookOpen className="w-4 h-4" style={{ color: theme.secondary }} />
-                </span>
+                <BookOpen className="w-5 h-5" style={{ color: theme.secondary }} />
                 Popular Journals
               </h3>
                 {userData.topJournals.length > 4 && (
@@ -880,9 +876,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             {/* Numbers not already in the header strip */}
             <ProfileCard>
               <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
-                  <TrendingUp className="w-4 h-4" style={{ color: theme.accent }} />
-                </span>
+                <TrendingUp className="w-5 h-5" style={{ color: theme.accent }} />
                 Journey
               </h3>
               <div className="flex" style={{ gap: '0.6rem' }}>
@@ -902,9 +896,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             {userData.achievements.length > 0 && (
               <ProfileCard>
                 <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
-                  <Award className="w-4 h-4" style={{ color: theme.accent }} />
-                </span>
+                <Award className="w-5 h-5" style={{ color: theme.accent }} />
                 Achievements
               </h3>
                 <div className="flex flex-wrap" style={{ gap: '0.6rem' }}>
@@ -926,9 +918,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             {userData.favoriteTopics.length > 0 && (
               <ProfileCard>
                 <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
-                  <Sparkles className="w-4 h-4" style={{ color: theme.accent }} />
-                </span>
+                <Sparkles className="w-5 h-5" style={{ color: theme.accent }} />
                 Interests
               </h3>
                 <div className="flex flex-wrap gap-2">
@@ -945,9 +935,7 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
             {(userData.email || userData.phone) && (
               <ProfileCard>
                 <h3 className="font-semibold text-lg flex items-center gap-2 mb-4">
-                <span className="flex items-center justify-center" style={{ width: '2.2rem', height: '2.2rem', borderRadius: '0.7rem', backgroundColor: `${theme.accent}22` }}>
-                  <User className="w-4 h-4" style={{ color: theme.accent }} />
-                </span>
+                <User className="w-5 h-5" style={{ color: theme.accent }} />
                 Contact
               </h3>
                 <div className="flex flex-col" style={{ gap: '0.5rem' }}>

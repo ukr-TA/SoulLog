@@ -746,6 +746,10 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           typingInSelected={Boolean(typingName)}
           compact={false}
           onOpen={(id) => openConversation(id, true)}
+          onStarted={(row) => {
+            setConversations((rows) => (rows.some((r) => r.id === row.id) ? rows : [row as Conversation, ...rows]));
+            openConversation(row.id, true);
+          }}
           onChanged={(id, change) => setConversations((rows) => rows.map((row) => (row.id === id ? { ...row, ...change } : row)))}
           onRemoved={(id) => {
             setConversations((rows) => rows.filter((row) => row.id !== id));
@@ -781,6 +785,10 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           typingInSelected={Boolean(typingName)}
           compact={true}
           onOpen={(id) => openConversation(id, false)}
+          onStarted={(row) => {
+            setConversations((rows) => (rows.some((r) => r.id === row.id) ? rows : [row as Conversation, ...rows]));
+            openConversation(row.id, false);
+          }}
           onChanged={(id, change) => setConversations((rows) => rows.map((row) => (row.id === id ? { ...row, ...change } : row)))}
           onRemoved={(id) => {
             setConversations((rows) => rows.filter((row) => row.id !== id));

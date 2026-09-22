@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, BellOff, Bell, Ban, Pin, PinOff, Search, Settings, Trash2, X, MoreHorizontal } from 'lucide-react';
-import { ApiError, del, post } from './api';
+import { Archive, ArchiveRestore, BellOff, Bell, Ban, Pin, PinOff, Search, Settings, Trash2, X, MoreHorizontal, MessageSquarePlus } from 'lucide-react';
+import { ApiError, del, get, post, type PublicUser } from './api';
 import { Avatar } from './ui';
 import type { Theme } from './theme';
 
@@ -40,6 +40,7 @@ const ChatList = ({
   typingInSelected,
   compact = false,
   onOpen,
+  onStarted,
   onChanged,
   onRemoved,
   onOpenSettings,
@@ -52,6 +53,8 @@ const ChatList = ({
   /** The narrower desktop sidebar. */
   compact?: boolean;
   onOpen: (id: number) => void;
+  /** A brand-new chat was started from search: add it and open it. */
+  onStarted: (row: ChatRow) => void;
   /** Patch one row locally after an action. */
   onChanged: (id: number, patch: Partial<ChatRow>) => void;
   /** A chat left the list (deleted or blocked). */
@@ -64,6 +67,38 @@ const ChatList = ({
   const [sheetFor, setSheetFor] = useState<ChatRow | null>(null);
   const [confirm, setConfirm] = useState<'delete' | 'block' | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Searching also finds people you can message but haven't yet —
+  // your friends first of all — so any friend is one tap from a chat.
+  const [people, setPeople] = useState<PublicUser[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setPeople([]); return; }
+    let cancelled = false;
+    setPeopleLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const found = await get<PublicUser[]>(`/messages/recipients/?q=${encodeURIComponent(q)}`);
+        if (!cancelled) setPeople(found);
+      } catch {
+        if (!cancelled) setPeople([]);
+      } finally {
+        if (!cancelled) setPeopleLoading(false);
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [query]);
+
+  const startChat = async (user: PublicUser) => {
+    try {
+      const row = await post<ChatRow>('/messages/conversations/', { user_id: user.id });
+      setQuery('');
+      onStarted(row);
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : 'Could not start that chat.');
+    }
+  };
 
   // Long press: a timer that opens the sheet, cancelled by lifting or
   // moving the finger (a scroll). The click that follows is swallowed.
@@ -89,7 +124,11 @@ const ChatList = ({
   }, [sheetFor]);
 
   const needle = query.trim().toLowerCase();
-  const matches = rows.filter((row) => !needle || row.name.toLowerCase().includes(needle));
+  const matches = rows.filter((row) =>
+    !needle || row.name.toLowerCase().includes(needle) || (row.username || '').toLowerCase().includes(needle));
+  // People found by search who don't have a chat in your list yet.
+  const chatUserIds = new Set(rows.map((row) => row.userId));
+  const newPeople = needle ? people.filter((user) => !chatUserIds.has(user.id)) : [];
   const unreadCount = rows.filter((row) => !row.archived && row.unread > 0).length;
   const archivedCount = rows.filter((row) => row.archived).length;
   const shown = matches.filter((row) =>
@@ -360,7 +399,7 @@ const ChatList = ({
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto min-h-0 pb-24 md:pb-3">
-        {shown.length === 0 && (
+        {shown.length === 0 && newPeople.length === 0 && !(needle && peopleLoading) && (
           <div className="text-center px-6" style={{ paddingTop: '3.5rem', color: theme.text }}>
             <div className="text-4xl mb-2">{filter === 'archived' ? '🗂️' : filter === 'unread' ? '✨' : '💬'}</div>
             <p className="text-sm" style={{ opacity: 0.65 }}>
@@ -375,6 +414,45 @@ const ChatList = ({
           </div>
         )}
         {shown.map(renderRow)}
+
+        {/* Start a new chat with someone found by name */}
+        {newPeople.length > 0 && filter !== 'archived' && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold uppercase tracking-wider px-5 pt-2 pb-1" style={{ color: theme.text, opacity: 0.5 }}>
+              Start a new chat
+            </p>
+            {newPeople.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => startChat(user)}
+                className="w-full flex items-center text-left transition-colors"
+                style={{
+                  gap: '0.8rem',
+                  padding: compact ? '0.6rem 0.9rem' : '0.7rem 1rem',
+                  margin: compact ? '0.1rem 0.4rem' : '0.1rem 0.5rem',
+                  width: compact ? 'calc(100% - 0.8rem)' : 'calc(100% - 1rem)',
+                  borderRadius: '0.9rem', background: 'transparent', border: 'none', color: theme.text,
+                }}
+                onMouseEnter={(event) => { event.currentTarget.style.backgroundColor = `${theme.text}0a`; }}
+                onMouseLeave={(event) => { event.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <Avatar user={{ name: user.name, initials: user.initials, avatarUrl: user.avatar_url }} theme={theme} size={compact ? 40 : 44} />
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate font-medium" style={{ fontSize: compact ? '0.9rem' : '0.95rem' }}>{user.name}</span>
+                  <span className="block truncate text-xs" style={{ opacity: 0.6 }}>
+                    @{user.username}{user.relationship?.state === 'accepted' ? ' · Friend' : ''}
+                  </span>
+                </span>
+                <span className="flex items-center justify-center flex-shrink-0" style={{ width: '2rem', height: '2rem', borderRadius: '9999px', backgroundColor: `${theme.accent}1f`, color: theme.accent }}>
+                  <MessageSquarePlus className="w-4 h-4" />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {needle && peopleLoading && shown.length === 0 && (
+          <p className="text-center text-xs mt-6" style={{ color: theme.text, opacity: 0.5 }}>Searching…</p>
+        )}
         {filter === 'all' && shown.length > 0 && (
           <p className="text-center text-xs mt-3 md:hidden" style={{ color: theme.text, opacity: 0.4 }}>Hold a chat for more options</p>
         )}

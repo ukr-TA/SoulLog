@@ -96,11 +96,28 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // Bumped by each click on "Settings" in the menu, so clicking it while
   // inside a section returns to the Settings list.
   const [settingsVisit, setSettingsVisit] = useState(0);
+  // Set while stepping back down to the left-bar level to swap in a new
+  // left-bar page (see openTab).
+  const switchingTo = useRef<string | null>(null);
+  /**
+   * A page chosen from the left bar (or the bottom bar on a phone).
+   *
+   * Those pages sit side by side, one level above the Dashboard, like the
+   * tabs of a phone app: switching between them replaces the page rather
+   * than stacking it, so Back from any of them — however many you visited
+   * first — goes straight to the Dashboard. Pages opened from *inside* one
+   * (a Settings section, a profile, a Souls tab) still stack on top of it.
+   */
   const openTab = (name: string) => {
     if (name === ACTIVE_TAB.SETTINGS) setSettingsVisit((n) => n + 1);
-    // Re-opening the screen you're inside (from a Settings section, say)
-    // is a new page too, so Back returns to where you were.
-    if (name === navState()?.tab && navState()?.sub) pushNav(name);
+    const depth = navState()?.depth ?? 0;
+    if (name !== ACTIVE_TAB.OVERVIEW && depth === 1) {
+      replaceNav(name, undefined, 1);
+    } else if (name !== ACTIVE_TAB.OVERVIEW && depth > 1) {
+      // Step back down to the left-bar level first, then swap that page.
+      switchingTo.current = name;
+      window.history.go(-(depth - 1));
+    }
     setActiveTab(name);
   };
   useEffect(() => {
@@ -233,6 +250,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     const here = navState();
     const depth = here?.depth ?? 0;
 
+    if (switchingTo.current) return; // openTab is handling the history
     if (!hasHistory.current) {
       hasHistory.current = true;
       if (depth > 0) {
@@ -262,6 +280,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
 
   useEffect(() => {
     const onPopState = () => {
+      if (switchingTo.current !== null) {
+        replaceNav(switchingTo.current, undefined, 1);
+        switchingTo.current = null;
+        return;
+      }
       if (rewindingTo.current !== null) {
         const tab = rewindingTo.current;
         rewindingTo.current = null;
@@ -684,7 +707,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 border: 'none'
               }}
               onClick={() => {
-                setActiveTab(ACTIVE_TAB.NOTIFICATION);
+                openTab(ACTIVE_TAB.NOTIFICATION);
               }}
               >
                 🔔

@@ -232,7 +232,12 @@ const ChatList = ({
           onOpen(row.id);
         }}
         onKeyDown={(event) => { if (event.key === 'Enter') onOpen(row.id); }}
-        onContextMenu={(event) => { event.preventDefault(); openSheet(row, event.clientX, event.clientY); }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          // A phone's long press also fires this; the timer already opened it.
+          if (pressed.current) return;
+          openSheet(row, event.clientX, event.clientY);
+        }}
         onTouchStart={(event) => {
           pressed.current = false;
           startPoint.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
@@ -250,7 +255,12 @@ const ChatList = ({
           const dy = Math.abs(event.touches[0].clientY - start.y);
           if (dx > 8 || dy > 8) window.clearTimeout(pressTimer.current);
         }}
-        onTouchEnd={() => window.clearTimeout(pressTimer.current)}
+        onTouchEnd={(event) => {
+          window.clearTimeout(pressTimer.current);
+          // Lifting the finger after a long press must not "click" — that
+          // click landed on the menu's backdrop and closed it straight away.
+          if (pressed.current && event.cancelable) event.preventDefault();
+        }}
         className="group relative flex items-center cursor-pointer transition-colors"
         style={{
           gap: '0.8rem',
@@ -458,8 +468,14 @@ const ChatList = ({
       {/* Options — a small menu right where you pressed */}
       {sheetFor && (
         <div
-          onClick={() => { if (Date.now() - openedAt.current > 600) setSheetFor(null); }}
-          onContextMenu={(event) => { event.preventDefault(); setSheetFor(null); }}
+          // Closed by a *new* tap outside the menu — never by the finger that
+          // opened it being lifted (that's not a new press).
+          onPointerDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (Date.now() - openedAt.current < 250) return;
+            setSheetFor(null);
+          }}
+          onContextMenu={(event) => event.preventDefault()}
           style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.12)' }}
         >
           <div

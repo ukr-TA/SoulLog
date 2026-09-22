@@ -23,7 +23,7 @@ import MoodCheckin from './MoodCheckin';
 import SoulLogProfileForm from './ProfileForm';
 import SoulLogOthersProfile from './ProfileOthersView';
 import { get, openSocket } from './api';
-import { goBack, navState, pushNav, replaceNav } from './nav';
+import { goBack, navState, pushNav, replaceNav, scrollToTop } from './nav';
 import type { Theme } from './theme';
 import type { MyProfile } from './types';
 
@@ -299,6 +299,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     return () => window.removeEventListener('popstate', onPopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Every page opens at its top.
+  useEffect(() => {
+    if (activeTab) scrollToTop();
+  }, [activeTab, viewingProfile]);
 
   // Clearing the badge when you open the screen that shows the items.
   useEffect(() => {

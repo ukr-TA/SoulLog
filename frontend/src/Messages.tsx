@@ -736,7 +736,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   // Desktop Layout
   return (
     <div
-      className="h-screen flex"
+      className="h-dvh flex"
       style={{ background: theme.gradient }}
     >
       <div

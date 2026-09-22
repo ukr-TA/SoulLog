@@ -5,7 +5,7 @@ import Sanctuary from './Sanctuary';
 import VideoInterface from './VideoPage';
 import SearchBarWithDropdown from './CommunitySearch';
 import type { Theme } from './theme';
-import { navState, pushNav } from './nav';
+import { navState, pushNav, scrollToTop } from './nav';
 
 const ACTIVE_TAB = {
   SANCTUARY: 'Sanctuary',
@@ -38,6 +38,11 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, se
     if (tab !== activeTab) pushNav('Community', tab);
     setActiveTabState(tab);
   };
+  // Sanctuary, Souls and Videos each open at the top.
+  useEffect(() => {
+    scrollToTop();
+  }, [activeTab]);
+
   useEffect(() => {
     const onPopState = () => {
       if (navState()?.tab !== 'Community') return;

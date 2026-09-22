@@ -223,7 +223,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
   // React would rebuild everything in it — losing focus and local state.
   const renderCompactUserCard = ({ user, type }: UserCardProps) => (
     <div
-      className="p-3 rounded-lg border transition-all duration-300 hover:shadow-md hover:scale-[1.02] cursor-pointer text-left"
+      className="p-3 rounded-lg border transition-all duration-300 hover:shadow-md hover:scale-[1.02] cursor-pointer text-left min-w-0"
       style={{
         backgroundColor: theme.surface,
         borderColor: theme.border,
@@ -676,7 +676,10 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
 
         {/* Content Grid/List */}
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:!grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 !gap-3">
+          // As many columns as fit, each at least 320px — and never wider
+          // than the screen, which on a phone pushed "Remove" and the status
+          // off the right edge.
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '0.75rem' }}>
             {getCurrentData().map((user) => (
               <Fragment key={user.id}>
                 {renderCompactUserCard({ user, type: getCurrentType() })}

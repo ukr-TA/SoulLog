@@ -57,12 +57,16 @@ html {
   background-color: #1B1F3B;
 }
 
+/*
+ * No flex centring on <body> (a leftover from the Vite starter). On a phone,
+ * 100vh is the height with the browser's address bar hidden; while the bar
+ * is showing, a page shorter than that was centred and appeared with an
+ * empty band above it.
+ */
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: #1B1F3B;
 }
 

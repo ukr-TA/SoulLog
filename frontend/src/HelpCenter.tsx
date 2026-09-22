@@ -150,7 +150,7 @@ const HelpCenter = ({ theme, onOpenSection }: { theme: Theme; onOpenSection: (se
   return (
     <div className="space-y-6">
       {/* Quick actions */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem' }}>
         <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('SoulLog question')}`} className="flex items-start gap-3 p-4 rounded-lg" style={{ ...card, color: theme.text }}>
           <Mail className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: theme.accent }} />
           <span>

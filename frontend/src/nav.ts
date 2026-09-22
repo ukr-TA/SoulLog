@@ -48,3 +48,15 @@ export function goBack(fallback: () => void) {
   if ((navState()?.depth ?? 0) > 0) window.history.back();
   else fallback();
 }
+
+/**
+ * Start a newly opened page at its top. Every screen shares the same
+ * scrolling area, so without this a page opened after scrolling a long
+ * one appeared already scrolled part-way down.
+ */
+export function scrollToTop() {
+  window.scrollTo(0, 0);
+  document.querySelectorAll<HTMLElement>('.main-content').forEach((el) => {
+    el.scrollTop = 0;
+  });
+}

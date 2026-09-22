@@ -109,6 +109,8 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  // The scrolling message area (phone or desktop layout).
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<LiveSocket | null>(null);
   const openChatRef = useRef<number | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -136,7 +138,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   }, []);
   // Keep the newest message in view as the keyboard opens and closes.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [viewport?.height]);
 
   // --- loading ------------------------------------------------------------
@@ -321,9 +323,34 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
+  // Opening a chat lands on the newest message, instantly (a smooth scroll
+  // through a long history stopped part-way, and photos loading in pushed
+  // it further up). After that, new messages glide into view.
+  const landedFor = useRef<number | null>(null);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingName]);
+    const box = threadRef.current;
+    if (!box) return;
+    const toBottom = () => { box.scrollTop = box.scrollHeight; };
+    if (landedFor.current !== selectedFriend && messages.length > 0) {
+      landedFor.current = selectedFriend;
+      toBottom();
+      requestAnimationFrame(toBottom);
+      const late = window.setTimeout(toBottom, 350);
+      return () => window.clearTimeout(late);
+    }
+    box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+  }, [messages, typingName, selectedFriend]);
+
+  // A photo finishing loading keeps you at the bottom if you were there.
+  useEffect(() => {
+    const box = threadRef.current;
+    if (!box) return;
+    const onLoad = () => {
+      if (box.scrollHeight - box.scrollTop - box.clientHeight < 400) box.scrollTop = box.scrollHeight;
+    };
+    box.addEventListener('load', onLoad, true);
+    return () => box.removeEventListener('load', onLoad, true);
+  }, [selectedFriend, isMobile]);
 
   // --- actions ------------------------------------------------------------
 
@@ -684,7 +711,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 text-left">
+          <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 text-left">
             {messages.length === 0 && renderEmptyThread()}
             {messages.map((msg) => <Fragment key={msg.id}>{renderMessageBubble({ msg })}</Fragment>)}
             {typingName && (
@@ -850,6 +877,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             </div>
 
             <div
+              ref={threadRef}
               className="flex-1 overflow-y-auto p-4 space-y-4 text-left"
               style={{ backgroundColor: theme.background }}
             >

@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Search, Clock, TrendingUp, X, Filter, Video, BookOpen, FileText, User, Plus, MessageCircle } from 'lucide-react';
+import { Search, Clock, TrendingUp, X, Filter, Video, BookOpen, FileText, User, MessageCircle } from 'lucide-react';
 import { del, get, type PublicUser } from './api';
 import type { Theme } from './theme';
 
@@ -45,7 +45,6 @@ interface SearchBarProps {
   darkMode?: boolean;
   onSelectPerson?: (username: string) => void;
   onSelectResult?: (kind: 'content' | 'post', row: ContentResult | PostResult) => void;
-  onShare?: () => void;
 }
 
 const SCOPES = [
@@ -55,7 +54,7 @@ const SCOPES = [
   { key: 'people', icon: User, label: 'People' },
 ];
 
-const SearchBarWithDropdown = ({ theme, darkMode, onSelectPerson, onSelectResult, onShare }: SearchBarProps) => {
+const SearchBarWithDropdown = ({ theme, darkMode, onSelectPerson, onSelectResult }: SearchBarProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -217,13 +216,6 @@ const SearchBarWithDropdown = ({ theme, darkMode, onSelectPerson, onSelectResult
 
   return (
     <div className='flex gap-2 flex-row-reverse items-center py-1 pb-1'>
-
-    {!isOpen && !searchQuery && (
-      <div onClick={() => onShare?.()} style={{color: theme.accent}} className="flex h-9 px-2 items-center py-1 cursor-pointer rounded-full border opacity-80">
-        <Plus color={theme.accent} size={20} className="group-hover:rotate-90 transition-transform duration-200 flex-shrink-0" />
-        Share
-      </div>
-    )}
 
     <div className="mx-auto p-0 flex-1 h-10">
       {/* Search Bar */}

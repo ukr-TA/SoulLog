@@ -95,7 +95,6 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, se
           darkMode={darkMode}
           onSelectPerson={(username: string) => onViewProfile?.(username)}
           onSelectResult={(kind: string) => setActiveTab(kind === 'content' ? ACTIVE_TAB.VIDEOS : ACTIVE_TAB.SANCTUARY)}
-          onShare={() => setActiveTab(ACTIVE_TAB.SANCTUARY)}
         />
         <div style={{
             display: 'flex',

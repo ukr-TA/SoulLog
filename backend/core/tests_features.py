@@ -308,3 +308,20 @@ class DeclinedRequestTests(APITestCase):
         again = self.client.post("/api/v1/social/requests/create/", {"user_id": self.b.id},
                                  format="json", **auth_header(self.a_token))
         self.assertIn(again.status_code, (200, 201))
+
+
+class NotificationTabCountsTests(APITestCase):
+    def test_tab_numbers_count_only_unread(self):
+        """The tabs used to show running totals; now only what's new."""
+        from notifications.models import Notification
+        from notifications.serializers import counts_for
+        from notifications.services import notify
+
+        register_and_login(self.client, "counted")
+        user = _user("counted")
+        notify(recipient=user, actor=None, kind="follow", title="a")
+        notify(recipient=user, actor=None, kind="connection_request", title="b")
+        self.assertEqual(counts_for(user)["social"], 2)
+        Notification.objects.filter(recipient=user).update(is_read=True)
+        counts = counts_for(user)
+        self.assertEqual((counts["all"], counts["social"], counts["unread"]), (0, 0, 0))

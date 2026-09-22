@@ -13,7 +13,7 @@
  * the bell in the header listens on.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { X } from 'lucide-react';
 import { ApiError, del, get, openSocket, post } from './api';
@@ -28,6 +28,8 @@ interface MessagePageProps {
   setActiveTab: (tab: string) => void;
   /** Open Community → Souls on Requests or Friends ("View" on a friend-request row). */
   onOpenSouls?: (tab: 'requests' | 'friends') => void;
+  /** Called once new notifications have been marked as seen. */
+  onSeen?: () => void;
 }
 
 type Notification = {
@@ -60,7 +62,7 @@ const setTargetBackground = (target: EventTarget, background: string) => {
   }
 };
 
-const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSouls }: MessagePageProps) => {
+const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSouls, onSeen }: MessagePageProps) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [counts, setCounts] = useState<Counts>({});
@@ -68,19 +70,32 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Opening this screen counts as seeing what's new: the numbers here and
+  // on the bell/left bar clear. The rows that were new stay highlighted
+  // for the rest of this visit, so you can still tell which they were.
+  const newThisVisit = useRef<Set<number>>(new Set());
+
   const load = useCallback(async () => {
     try {
       const data = await get<{ notifications: Notification[]; counts: Counts }>(
         `/notifications/?filter=${activeFilter}&limit=${limit}`,
       );
+      const unread = data.notifications.filter((row) => !row.isRead);
+      unread.forEach((row) => newThisVisit.current.add(row.id));
       setNotifications(data.notifications);
       setCounts(data.counts);
       setError(null);
+      if (unread.length > 0 || (data.counts.unread || 0) > 0) {
+        const seen = await post<{ counts: Counts }>('/notifications/read-all/');
+        setCounts(seen.counts);
+        onSeen?.();
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load your notifications.');
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilter, limit]);
 
   useEffect(() => {
@@ -341,18 +356,18 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSoul
                 borderBottom: index < getFilteredNotifications().length - 1 ? `1px solid ${theme.border}` : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
-                background: notification.isRead ? 'transparent' : theme.accent + '08',
+                background: notification.isRead && !newThisVisit.current.has(notification.id) ? 'transparent' : theme.accent + '08',
                 position: 'relative'
               }}
               onMouseEnter={(e: ReactMouseEvent<HTMLElement>) => {
                 setTargetBackground(e.target, theme.border + '20');
               }}
               onMouseLeave={(e: ReactMouseEvent<HTMLElement>) => {
-                setTargetBackground(e.target, notification.isRead ? 'transparent' : theme.accent + '08');
+                setTargetBackground(e.target, notification.isRead && !newThisVisit.current.has(notification.id) ? 'transparent' : theme.accent + '08');
               }}
             >
               {/* Unread indicator */}
-              {!notification.isRead && (
+              {(!notification.isRead || newThisVisit.current.has(notification.id)) && (
                 <div style={{
                   position: 'absolute',
                   left: '0.5rem',

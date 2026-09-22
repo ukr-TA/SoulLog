@@ -23,6 +23,7 @@ import MoodCheckin from './MoodCheckin';
 import SoulLogProfileForm from './ProfileForm';
 import SoulLogOthersProfile from './ProfileOthersView';
 import { get, openSocket } from './api';
+import { seenRequests } from './seen';
 import { goBack, navState, pushNav, replaceNav, scrollToTop } from './nav';
 import type { Theme } from './theme';
 import type { MyProfile } from './types';
@@ -181,11 +182,13 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
       const [notifications, messages, requests] = await Promise.all([
         get<{ unread: number }>('/notifications/unread-count/'),
         get<{ unread: number }>('/messages/unread/'),
-        get<unknown[]>('/social/requests/?direction=incoming'),
+        get<{ connection_id?: number | null }[]>('/social/requests/?direction=incoming'),
       ]);
       setUnreadNotifications(notifications.unread);
       setUnreadMessages(messages.unread);
-      setPendingRequests(requests.length);
+      // Only requests you haven't looked at yet count towards the badge.
+      const seen = seenRequests();
+      setPendingRequests(requests.filter((row) => !seen.has(row.connection_id ?? -1)).length);
     } catch {
       // Badges are decoration on top of working screens; a failure here
       // shouldn't produce an error message over the whole app.
@@ -892,7 +895,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               />
             )
           : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={`${settingsSection}-${settingsVisit}`} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
-          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onOpenSouls={openSouls}/>
+          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onOpenSouls={openSouls} onSeen={refreshBadges}/>
           /* CreateJournal takes no `backPage`: it navigates back to Journal
              itself, so the prop it was being handed was never read. */
           : activeTab === ACTIVE_TAB.LOG ? <CreateJournal key={pendingPrompt ?? 'blank'} theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile={isMobile} initialPrompt={pendingPrompt}/>

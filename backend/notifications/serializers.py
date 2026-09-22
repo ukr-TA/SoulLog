@@ -98,10 +98,13 @@ def counts_for(user):
     unread = 0
     total = 0
 
+    # Tab numbers count only what's new (unread). A running total on every
+    # tab just grows forever and stops meaning anything.
     for kind, is_read in rows.values_list("kind", "is_read"):
+        if is_read:
+            continue
         total += 1
-        if not is_read:
-            unread += 1
+        unread += 1
         category = NotificationKind.CATEGORY.get(kind, "engagement")
         by_category[category] = by_category.get(category, 0) + 1
 

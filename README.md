@@ -17,7 +17,7 @@ rather than faked.
 | **Backend** | Django 5.2 · Django REST Framework · Channels (WebSockets) · PostgreSQL 16 · Redis (optional) · JWT auth |
 | **Frontend** | React 19 · TypeScript (strict, no `any`) · Vite 7 · Tailwind CSS 4 |
 | **Mobile** | Capacitor 7 — Android and iOS from the same codebase |
-| **Quality** | 226 backend tests incl. real WebSocket tests · GitHub Actions CI (Postgres, deploy checks, Android build, Docker) |
+| **Quality** | 227 backend tests incl. real WebSocket tests · GitHub Actions CI (Postgres, deploy checks, Android build, Docker) |
 | **Ops** | Docker Compose · gunicorn + uvicorn workers · WhiteNoise · S3-ready media storage · optional Sentry |
 
 ## Screenshots
@@ -178,7 +178,7 @@ exactly what was seeded.
 ## Tests
 
 ```bash
-cd backend && python manage.py test        # 226 tests, including real WebSocket tests
+cd backend && python manage.py test        # 227 tests, including real WebSocket tests
 cd frontend && npx tsc --noEmit -p tsconfig.app.json && npm run lint && npm run build
 ```
 

@@ -22,6 +22,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, UserPlus, Check, X, MessageCircle, MoreHorizontal, Users, Bell, Heart, Filter } from 'lucide-react';
 import { ApiError, del, get, post, type PublicUser } from './api';
+import { markRequestsSeen, seenRequests } from './seen';
 import { Avatar } from './ui';
 import { relativeTime } from './time';
 import type { Theme } from './theme';
@@ -462,10 +463,28 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile, i
     </div>
   );
 
+  // Opening Requests counts as having seen them: the numbers on Requests,
+  // Souls and Community go, while the requests stay until answered.
+  const [seenVersion, setSeenVersion] = useState(0);
+  useEffect(() => {
+    if (activeTab !== 'requests' || requests.length === 0) return;
+    markRequestsSeen(requests.map((row) => row.connection_id ?? -1));
+    setSeenVersion((n) => n + 1);
+    onRequestsChanged?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, requests]);
+  const unseenRequests = useMemo(() => {
+    const seen = seenRequests();
+    return requests.filter((row) => !seen.has(row.connection_id ?? -1)).length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requests, seenVersion]);
+
+  // Numbers only for what's new: unseen friend requests. Totals (how many
+  // suggestions, how many friends) aren't news and aren't shown.
   const tabs = [
-    { id: 'suggestions', label: 'Suggestions', icon: Users, count: suggestions.length },
-    { id: 'requests', label: 'Requests', icon: Bell, count: requests.length },
-    { id: 'friends', label: 'Friends', icon: Heart, count: friends.length }
+    { id: 'suggestions', label: 'Suggestions', icon: Users, count: 0 },
+    { id: 'requests', label: 'Requests', icon: Bell, count: unseenRequests },
+    { id: 'friends', label: 'Friends', icon: Heart, count: 0 }
   ];
 
   const getCurrentData = (): PublicUser[] => {
@@ -523,9 +542,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile, i
                     >
                       <Icon size={16} />
                       <span className="hidden sm:inline">{tab.label}</span>
-                      {/* No number on Suggestions: it would only ever say
-                          "lots". Requests and Friends keep theirs. */}
-                      {tab.count > 0 && tab.id !== 'suggestions' && (
+                      {tab.count > 0 && (
                         <span
                           className="px-1.5 py-0.5 rounded-full text-xs font-bold min-w-[18px] text-center"
                           style={{

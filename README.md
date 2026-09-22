@@ -159,5 +159,4 @@ the code to evaluate my work, but you may not copy, modify, redistribute,
 deploy or reuse any part of it, or use the SoulLog name and design,
 without my written permission. See [`LICENSE`](LICENSE).
 
-Interested in the project or in working together? Email
-burgeon.utsuk@gmail.com.
+ Email : utsukkharel21@gmail.com

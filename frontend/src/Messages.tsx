@@ -113,6 +113,29 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
 
   const currentFriend = conversations.find((row) => row.id === selectedFriend) || null;
 
+  // The part of the screen the phone's keyboard leaves visible. An open
+  // chat on a phone is pinned to exactly this area, so when the keyboard
+  // comes up the name stays at the top, the typing bar sits right on the
+  // keyboard, and the messages fill what's between — instead of the page
+  // scrolling the header away and leaving the bar floating mid-screen.
+  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    const visual = window.visualViewport;
+    if (!visual) return;
+    const update = () => setViewport({ height: visual.height, top: visual.offsetTop });
+    update();
+    visual.addEventListener('resize', update);
+    visual.addEventListener('scroll', update);
+    return () => {
+      visual.removeEventListener('resize', update);
+      visual.removeEventListener('scroll', update);
+    };
+  }, []);
+  // Keep the newest message in view as the keyboard opens and closes.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [viewport?.height]);
+
   // --- loading ------------------------------------------------------------
 
   const loadConversations = useCallback(async () => {
@@ -565,7 +588,15 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
       return (
         <div
           className="flex flex-col"
-          style={{ background: theme.chatBg, minHeight: '100vh' }}
+          style={{
+            background: theme.chatBg,
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            top: viewport ? viewport.top : 0,
+            height: viewport ? viewport.height : '100dvh',
+            zIndex: 2000,
+          }}
         >
           <input
             type="file"
@@ -576,7 +607,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           />
 
           <div
-            className="header flex items-center py-2 px-0 border-b"
+            className="header flex items-center py-2 px-0 border-b flex-shrink-0"
             style={{
               backgroundColor: theme.surface,
               borderColor: theme.border
@@ -619,7 +650,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 text-left">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 text-left">
             {messages.length === 0 && renderEmptyThread()}
             {messages.map((msg) => <Fragment key={msg.id}>{renderMessageBubble({ msg })}</Fragment>)}
             {typingName && (
@@ -631,12 +662,11 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           </div>
 
           <div
-            className="p-2 border-t"
+            className="p-2 border-t flex-shrink-0"
             style={{
               backgroundColor: theme.surface,
               borderColor: theme.border,
-              position: 'sticky',
-              bottom: 0
+              paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
             }}
           >
             {error && <p className="text-xs pb-1" style={{ color: theme.text, opacity: 0.8 }}>{error}</p>}

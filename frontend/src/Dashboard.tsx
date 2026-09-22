@@ -691,7 +691,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
       }
 
       {
-        isMobile && !hideExtra && (
+        isMobile && !hideExtra && activeTab !== ACTIVE_TAB.MESSAGES && (
           <>
             {/* Top Row - Brand, Search, and User */}
             <div className='header' style={{

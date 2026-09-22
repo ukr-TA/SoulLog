@@ -358,7 +358,7 @@ const ChatList = ({
   return (
     <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: theme.surface }}>
       {/* Header */}
-      <div style={{ padding: compact ? '0.9rem 0.9rem 0.6rem' : '1rem 1rem 0.7rem' }}>
+      <div style={{ padding: compact ? '0.9rem 0.9rem 0.6rem' : 'calc(1rem + env(safe-area-inset-top)) 1rem 0.7rem' }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold" style={{ color: theme.text, fontSize: compact ? '1.15rem' : '1.35rem', margin: 0 }}>Whispers</h2>
           {onOpenSettings && (

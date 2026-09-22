@@ -206,37 +206,75 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // Screens here are switched in React state, not by URL, so the browser
   // had nothing to go back to and Back left the app entirely. Now every
   // screen you open is recorded in the browser's history, so Back goes to
-  // the previous screen — the way it does on any website — and Back from
-  // the first screen leaves the app. On Android the hardware back button
+  // the previous screen, all the way down to the Dashboard — and Back from
+  // the Dashboard leaves the app. On Android the hardware back button
   // follows the same history.
   //
-  // The rule is simple: whenever the screen shown differs from the one
-  // the current history entry describes, record a new entry. A Back or
+  // The rules: whenever the screen shown differs from the one the current
+  // history entry describes, record a new entry; and arriving at the
+  // Dashboard by any route rewinds to the bottom entry instead. A Back or
   // Forward step moves the history first and the screen follows, so it
   // never records anything twice. See nav.ts.
   const hasHistory = useRef(false);
+  // Set while the history is being rewound on start-up (after a refresh
+  // left us part-way down it): the screen to show once we're at the bottom.
+  const rewindingTo = useRef<string | null>(null);
+  const subFor = (tab: string) =>
+    tab === ACTIVE_TAB.PROFILE_OTHER ? viewingProfile || undefined : undefined;
+
+  /** Make the current entry the Dashboard at the bottom, then open `tab` on top. */
+  const startFrom = (tab: string) => {
+    replaceNav(ACTIVE_TAB.OVERVIEW, undefined, 0);
+    if (tab !== ACTIVE_TAB.OVERVIEW) pushNav(tab, subFor(tab));
+  };
+
   useEffect(() => {
     if (!activeTab) return;
-    // Someone else's profile is a page per person, so Back from Maya's
-    // profile to David's shows David's.
-    const sub = activeTab === ACTIVE_TAB.PROFILE_OTHER ? viewingProfile || undefined : undefined;
     const here = navState();
+    const depth = here?.depth ?? 0;
+
     if (!hasHistory.current) {
       hasHistory.current = true;
-      replaceNav(activeTab, sub);
-    } else if (here?.tab !== activeTab || (sub && here?.sub !== sub)) {
+      if (depth > 0) {
+        // Refreshed part-way down: rewind to the bottom first.
+        rewindingTo.current = activeTab;
+        window.history.go(-depth);
+      } else {
+        startFrom(activeTab);
+      }
+      return;
+    }
+
+    if (activeTab === ACTIVE_TAB.OVERVIEW) {
+      // The Dashboard is the floor. Getting here by a click (menu, logo)
+      // rewinds to it instead of stacking another copy on top, so the
+      // next Back leaves the app.
+      if (depth > 0) window.history.go(-depth);
+      return;
+    }
+
+    const sub = subFor(activeTab);
+    if (here?.tab !== activeTab || (sub && here?.sub !== sub)) {
       pushNav(activeTab, sub);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, viewingProfile]);
 
   useEffect(() => {
     const onPopState = () => {
+      if (rewindingTo.current !== null) {
+        const tab = rewindingTo.current;
+        rewindingTo.current = null;
+        startFrom(tab);
+        return;
+      }
       const here = navState();
       if (here?.tab === ACTIVE_TAB.PROFILE_OTHER && here.sub) setViewingProfile(here.sub);
       setActiveTab(here?.tab || ACTIVE_TAB.OVERVIEW);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clearing the badge when you open the screen that shows the items.

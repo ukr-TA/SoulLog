@@ -10,6 +10,10 @@
  * An entry records the top-level screen (`tab`), optionally a page inside
  * it (`sub`), and how many SoulLog entries lie behind it (`depth`), so an
  * in-app back arrow knows whether there is anywhere to go back to.
+ *
+ * The Dashboard is always the bottom entry (depth 0). Reaching it by any
+ * route rewinds the history to that entry rather than adding one, so Back
+ * from the Dashboard always leaves the app — however you got there.
  */
 export interface NavState {
   soullog: true;
@@ -31,8 +35,7 @@ export function pushNav(tab: string, sub?: string) {
 }
 
 /** Describe the current entry without adding one (the very first page). */
-export function replaceNav(tab: string, sub?: string) {
-  const depth = navState()?.depth ?? 0;
+export function replaceNav(tab: string, sub?: string, depth: number = navState()?.depth ?? 0) {
   window.history.replaceState({ soullog: true, tab, sub, depth } satisfies NavState, '', window.location.href);
 }
 

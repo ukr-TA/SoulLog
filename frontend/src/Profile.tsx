@@ -16,7 +16,7 @@
 
 import { goBack } from './nav';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, MapPin, Calendar, MessageCircle, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft, NotebookPen, UserPen, BarChart3, UserPlus } from 'lucide-react';
+import { Camera, MapPin, Calendar, MessageCircle, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft, NotebookPen, UserPen, BarChart3, UserPlus, ChevronRight } from 'lucide-react';
 import { ApiError, api, get, post } from './api';
 import { profileShare, shareOrCopy } from './links';
 import type { Theme } from './theme';
@@ -731,91 +731,142 @@ const SoulLogOwnProfile = ({
               </button>
             )}
 
-            {/* My Top Journals */}
+            {/* My Top Journals — your most-loved shared entries, ranked. */}
             <ProfileCard theme={theme}>
-              <div className="flex items-center justify-between mb-5">
-
-                <h3 className="font-semibold mb-3 text-lg flex items-center gap-2">
-                  <BookOpen className="w-6 h-6" style={{ color: theme.secondary }} />
-                  My Top Journals
-                </h3>
-                <Button theme={theme} variant="outline" size="sm" onClick={() => setActiveTab('Journal')}>
-                  Manage Posts
-                </Button>
-              </div>
-              
-              <div className="space-y-5">
-                {userData.topJournals.map((journal) => (
-                  <div 
-                    key={journal.id}
-                    className={`relative p-5 rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02]`} 
-                    style={{ 
-                      backgroundColor: journal.isHighlighted ? `${theme.accent}12` : `${theme.secondary}20`,
-                      border: `1px solid ${theme.surface}20`,
-                    }}
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="flex items-center justify-center flex-shrink-0"
+                    style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.75rem', backgroundColor: `${theme.secondary}22` }}
                   >
-                    {journal.isHighlighted && (
-                      <div className="absolute top-1 right-1">
-                        <div 
-                          className="px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                          style={{ backgroundColor: theme.accent, color: theme.text }}
+                    <BookOpen className="w-5 h-5" style={{ color: theme.secondary }} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-lg leading-tight whitespace-nowrap">My Top Journals</h3>
+                    <p className="text-xs opacity-60 truncate">Your most-loved shared entries</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('Journal')}
+                  aria-label="Manage your journal"
+                  title="Manage your journal"
+                  className="flex items-center gap-1 flex-shrink-0 text-sm font-medium transition-all hover:gap-2"
+                  style={{
+                    padding: '0.45rem 0.85rem', borderRadius: '9999px',
+                    backgroundColor: `${theme.accent}14`, border: `1px solid ${theme.accent}40`, color: theme.accent,
+                  }}
+                >
+                  Manage <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {userData.topJournals.length === 0 && (
+                <div className="text-center rounded-xl py-8 px-4" style={{ border: `1px dashed ${theme.border}` }}>
+                  <p className="text-3xl mb-2">📝</p>
+                  <p className="text-sm opacity-75 mb-3">Share an entry and the ones people love most show up here.</p>
+                  <button
+                    onClick={openJournalModal}
+                    className="text-sm font-medium"
+                    style={{ padding: '0.5rem 1.1rem', borderRadius: '9999px', backgroundColor: theme.accent, color: theme.background, border: 'none' }}
+                  >
+                    Write an entry
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col" style={{ gap: '0.9rem' }}>
+                {userData.topJournals.map((journal, index) => {
+                  const rankColor = index === 0 ? theme.accent : theme.secondary;
+                  return (
+                    <div
+                      key={journal.id}
+                      className="relative rounded-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg overflow-hidden"
+                      style={{
+                        padding: '1rem 1rem 0.85rem 1.15rem',
+                        backgroundColor: index === 0 ? `${theme.accent}10` : `${theme.secondary}12`,
+                        border: `1px solid ${rankColor}2e`,
+                      }}
+                    >
+                      {/* Rank edge */}
+                      <span aria-hidden="true" className="absolute left-0 top-0 bottom-0" style={{ width: '4px', backgroundColor: rankColor }} />
+
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="flex items-center justify-center flex-shrink-0 text-xl"
+                          style={{ width: '2.6rem', height: '2.6rem', borderRadius: '0.8rem', backgroundColor: `${rankColor}22` }}
                         >
-                          ⭐ Featured
+                          {journal.emoji}
                         </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <span className="text-3xl">{journal.emoji}</span>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-xl mb-1">{journal.title}</h3>
-                          <span className="text-sm opacity-60">{journal.date}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-semibold text-base leading-snug break-words">{journal.title}</h4>
+                            <span
+                              className="flex-shrink-0 text-xs font-bold"
+                              style={{ padding: '0.1rem 0.5rem', borderRadius: '9999px', backgroundColor: `${rankColor}26`, color: rankColor }}
+                            >
+                              #{index + 1}
+                            </span>
+                          </div>
+                          <p className="text-xs opacity-55 mt-0.5">{journal.date}</p>
                         </div>
                       </div>
 
-                    </div>
-                    
-                    <p className="text-base leading-relaxed mb-4 opacity-90">{journal.excerpt}</p>
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex flex-wrap gap-2">
-                        {journal.tags.map((tag) => (
-                          <span 
-                            key={tag}
-                            className="px-3 py-1 rounded-full text-sm font-medium transition-all"
-                            style={{ backgroundColor: `${theme.secondary}25`, color: theme.secondary }}
-                          >
-                            #{tag.replace(/^#/, '')}
+                      <p
+                        className="text-sm leading-relaxed opacity-85 mt-3"
+                        style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                      >
+                        {journal.excerpt}
+                      </p>
+
+                      {journal.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {journal.tags.slice(0, 4).map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-xs font-medium"
+                              style={{ padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: `${theme.secondary}22`, color: theme.secondary }}
+                            >
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${theme.border}` }}>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="flex items-center gap-1.5" title="Reactions">
+                            <Heart className="w-4 h-4" style={{ color: theme.accent }} />
+                            <span className="font-medium">{journal.interactions.reactions}</span>
                           </span>
-                        ))}
+                          <span className="flex items-center gap-1.5 opacity-80" title="Comments">
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="font-medium">{journal.interactions.comments}</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {[
+                            { label: 'Edit entry', icon: <Edit3 className="w-4 h-4" />, action: 'edit' as const },
+                            { label: 'Share entry', icon: <Share2 className="w-4 h-4" />, action: 'share' as const },
+                          ].map((item) => (
+                            <button
+                              key={item.label}
+                              aria-label={item.label}
+                              title={item.label}
+                              onClick={() => onOpenJournalEntry ? onOpenJournalEntry(journal.id, item.action) : setActiveTab('Journal')}
+                              className="flex items-center justify-center transition-all hover:scale-105"
+                              style={{
+                                width: '2.2rem', height: '2.2rem', padding: 0, borderRadius: '9999px',
+                                backgroundColor: `${theme.accent}12`, border: `1px solid ${theme.accent}40`, color: theme.accent,
+                              }}
+                            >
+                              {item.icon}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* Performance Stats */}
-                    <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: theme.border }}>
-                      <div className="flex items-center gap-6 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Heart className="w-4 h-4 opacity-75" style={{ color: theme.accent }} />
-                          <span className="font-medium">{journal.interactions.reactions}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle className="w-4 h-4 opacity-75" />
-                          <span className="font-medium">{journal.interactions.comments}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button theme={theme} variant="outline" size="sm" onClick={() => onOpenJournalEntry ? onOpenJournalEntry(journal.id, 'edit') : setActiveTab('Journal')}>
-                          <Edit3 className="w-4 h-4" />
-                        </Button>
-                        <Button theme={theme} variant="outline" size="sm" onClick={() => onOpenJournalEntry ? onOpenJournalEntry(journal.id, 'share') : setActiveTab('Journal')}>
-                          <Share2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ProfileCard>
           </div>

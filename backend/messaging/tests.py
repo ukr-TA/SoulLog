@@ -373,6 +373,12 @@ class WebSocketTests(TransactionTestCase):
             await sender.send_json_to({"type": "message", "body": "sent over the socket"})
             event = await listener.receive_json_from(timeout=5)
             self.assertEqual(event["data"]["text"], "sent over the socket")
+            # Each side sees it from their own point of view. The receiver
+            # used to be told "me", so the other person's message appeared
+            # as their own.
+            self.assertEqual(event["data"]["sender"], "them")
+            own = await sender.receive_json_from(timeout=5)
+            self.assertEqual(own["data"]["sender"], "me")
 
             await sender.disconnect()
             await listener.disconnect()
@@ -420,3 +426,28 @@ class NotificationSocketTests(TransactionTestCase):
             await communicator.disconnect()
 
         async_to_sync(scenario)()
+
+
+class MessagesAndNotificationsTests(APITestCase):
+    def setUp(self):
+        self.a = User.objects.create_user(username="nira", email="nira@example.com", password="SuperSecure123")
+        self.b = User.objects.create_user(username="om", email="om@example.com", password="SuperSecure123")
+        self.conversation, _ = get_or_create_direct(self.a, self.b)
+
+    def test_a_message_creates_no_notification(self):
+        from notifications.models import Notification
+
+        from .services import send_message
+
+        send_message(self.conversation, self.a, "hello")
+        self.assertFalse(Notification.objects.filter(recipient=self.b).exists())
+        self.assertEqual(total_unread(self.b), 1)
+
+    def test_a_muted_conversation_leaves_the_whispers_badge_alone(self):
+        from .models import ConversationParticipant
+        from .services import send_message
+
+        ConversationParticipant.objects.filter(conversation=self.conversation, user=self.b).update(is_muted=True)
+        send_message(self.conversation, self.a, "hello")
+        self.assertEqual(total_unread(self.b), 0)
+        self.assertEqual(unread_count_for(self.conversation, self.b), 1)

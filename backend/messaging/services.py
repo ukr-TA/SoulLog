@@ -83,10 +83,14 @@ def unread_count_for(conversation, user):
 
 
 def total_unread(user):
-    """The badge on the Whispers nav item."""
+    """
+    The badge on the Whispers nav item. A muted conversation doesn't count
+    towards it — that's what muting does now that messages don't create
+    notifications. (Its own row in the list still shows its unread count.)
+    """
     total = 0
     memberships = ConversationParticipant.objects.filter(
-        user=user, left_at__isnull=True
+        user=user, left_at__isnull=True, is_muted=False
     ).select_related("conversation")
     for membership in memberships:
         total += unread_count_for(membership.conversation, user)
@@ -118,16 +122,13 @@ def broadcast(conversation_id, event_type, payload):
 
 def send_message(conversation, sender, body, attachments=None):
     """
-    Persist a message, update the conversation, push it, and notify anyone
-    who isn't watching.
+    Persist a message, update the conversation and push it live.
 
-    Notification is skipped for participants who have the conversation
-    muted, and for a recipient who has read the thread within the last few
-    seconds — they are plainly looking at it, and a notification for a
-    message you just watched arrive is noise.
+    Messages don't create notifications: they have their own unread count
+    on Whispers, and a notification per message filled the Notifications
+    screen with chat. Instead, each other participant's devices get a
+    small "unread changed" nudge so that count updates straight away.
     """
-    from notifications.services import notify
-
     from .serializers import serialize_message
 
     message = Message.objects.create(conversation=conversation, sender=sender, body=body)
@@ -144,23 +145,29 @@ def send_message(conversation, sender, body, attachments=None):
     payload = serialize_message(message, viewer=sender)
     transaction.on_commit(lambda: broadcast(conversation.id, "message", payload))
 
-    recently_active = timezone.now() - timezone.timedelta(seconds=15)
-    display_name = sender.fullname or sender.username
-
-    for membership in participants_of(conversation).exclude(user=sender):
-        if membership.is_muted:
-            continue
-        if membership.last_read_at and membership.last_read_at >= recently_active:
-            continue
-        notify(
-            recipient=membership.user,
-            actor=sender,
-            kind="message",
-            title="sent you a message",
-            body=(body[:140] + "…") if len(body) > 140 else body,
-            target=conversation,
-            target_label=display_name,
-            dedupe_key=f"message:{conversation.id}",
-        )
+    recipients = list(
+        participants_of(conversation)
+        .exclude(user=sender)
+        .filter(is_muted=False)
+        .values_list("user_id", flat=True)
+    )
+    transaction.on_commit(lambda: _nudge_unread(recipients))
 
     return message
+
+
+def _nudge_unread(user_ids):
+    """Tell these users' open apps to refresh their unread-message count."""
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+
+        from notifications.services import user_group
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        for user_id in user_ids:
+            async_to_sync(channel_layer.group_send)(user_group(user_id), {"type": "unread.changed"})
+    except Exception:  # noqa: BLE001 — best effort, like broadcast()
+        logger.warning("Unread nudge failed", exc_info=True)

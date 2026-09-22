@@ -36,6 +36,10 @@ interface ConnectionsPageProps {
   setActiveTab?: (tab: string) => void;
   onOpenConversation?: (userId: number) => void;
   onViewProfile?: (username: string) => void;
+  /** Which list to open on (e.g. Requests, from a notification). */
+  initialTab?: Tab;
+  /** Called after answering a request, so badges elsewhere update. */
+  onRequestsChanged?: () => void;
 }
 
 type Tab = 'suggestions' | 'requests' | 'friends';
@@ -52,8 +56,28 @@ interface UserCardProps {
 }
 
 
-const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }: ConnectionsPageProps) => {
-  const [activeTab, setActiveTab] = useState<Tab>('suggestions');
+const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile, initialTab, onRequestsChanged }: ConnectionsPageProps) => {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'suggestions');
+
+  // The "⋯" menu on a friend's card: which card it's open on, and whether
+  // "Remove friend" has been tapped once (it asks before removing).
+  const [friendMenu, setFriendMenu] = useState<number | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const friendMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (friendMenu === null) return;
+    const close = (event: MouseEvent | TouchEvent) => {
+      if (friendMenuRef.current?.contains(event.target as Node)) return;
+      setFriendMenu(null);
+      setConfirmRemove(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close);
+    };
+  }, [friendMenu]);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
@@ -176,8 +200,10 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
   const sendRequest = (user: PublicUser) =>
     act(user.id, () => post('/social/requests/create/', { user_id: user.id }));
 
-  const respond = (user: PublicUser, action: 'accept' | 'decline') =>
-    act(user.id, () => post(`/social/requests/${user.connection_id}/respond/`, { action }));
+  const respond = async (user: PublicUser, action: 'accept' | 'decline') => {
+    await act(user.id, () => post(`/social/requests/${user.connection_id}/respond/`, { action }));
+    onRequestsChanged?.();
+  };
 
   const removeConnection = (user: PublicUser) =>
     act(user.id, () => del(`/social/connections/${user.id}/`));
@@ -320,14 +346,46 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
               <MessageCircle size={11} />
               Message
             </button>
-            <button
-              onClick={() => removeConnection(user)}
-              title="Remove connection"
-              className="px-2 py-1.5 rounded-md transition-colors border"
-              style={{ borderColor: theme.border, color: theme.text }}
-            >
-              <MoreHorizontal size={11} />
-            </button>
+            <div className="relative" ref={friendMenu === user.id ? friendMenuRef : undefined}>
+              <button
+                onClick={() => { setFriendMenu(friendMenu === user.id ? null : user.id); setConfirmRemove(false); }}
+                aria-label={`More options for ${user.name}`}
+                aria-expanded={friendMenu === user.id}
+                className="px-2 py-1.5 rounded-md transition-colors border h-full"
+                style={{ borderColor: theme.border, color: theme.text }}
+              >
+                <MoreHorizontal size={14} />
+              </button>
+              {friendMenu === user.id && (
+                <div
+                  role="menu"
+                  className="absolute right-0 bottom-full mb-2 z-30 rounded-xl shadow-lg overflow-hidden text-sm text-left"
+                  style={{ background: theme.surface, border: `1px solid ${theme.border}`, minWidth: '190px' }}
+                >
+                  <button
+                    role="menuitem"
+                    className="w-full text-left px-4 py-3"
+                    style={{ color: theme.text, background: 'transparent' }}
+                    onClick={() => { setFriendMenu(null); onViewProfile?.(user.username); }}
+                  >
+                    View profile
+                  </button>
+                  <button
+                    role="menuitem"
+                    className="w-full text-left px-4 py-3"
+                    style={{ color: '#ff6b6b', background: 'transparent' }}
+                    onClick={() => {
+                      if (!confirmRemove) { setConfirmRemove(true); return; }
+                      setFriendMenu(null);
+                      setConfirmRemove(false);
+                      removeConnection(user);
+                    }}
+                  >
+                    {confirmRemove ? `Tap again to remove ${user.name.split(' ')[0]}` : 'Remove friend'}
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -465,7 +523,9 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
                     >
                       <Icon size={16} />
                       <span className="hidden sm:inline">{tab.label}</span>
-                      {tab.count > 0 && (
+                      {/* No number on Suggestions: it would only ever say
+                          "lots". Requests and Friends keep theirs. */}
+                      {tab.count > 0 && tab.id !== 'suggestions' && (
                         <span
                           className="px-1.5 py-0.5 rounded-full text-xs font-bold min-w-[18px] text-center"
                           style={{

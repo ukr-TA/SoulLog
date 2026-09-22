@@ -64,6 +64,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         if message.get("type") == "ping":
             await self.send(json.dumps({"type": "pong"}))
 
+    async def unread_changed(self, event):
+        """A new direct message: the app refreshes its Whispers badge."""
+        await self.send(json.dumps({"type": "unread"}))
+
     async def notification_message(self, event):
         await self.send(json.dumps({"type": "notification", "notification": event["payload"]}))
 

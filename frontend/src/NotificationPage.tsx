@@ -26,6 +26,8 @@ interface MessagePageProps {
   setHideExtra: (hidden: boolean) => void;
   setDarkMode?: (dark: boolean) => void;
   setActiveTab: (tab: string) => void;
+  /** Open Community → Souls on Requests or Friends ("View" on a friend-request row). */
+  onOpenSouls?: (tab: 'requests' | 'friends') => void;
 }
 
 type Notification = {
@@ -58,7 +60,7 @@ const setTargetBackground = (target: EventTarget, background: string) => {
   }
 };
 
-const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra }: MessagePageProps) => {
+const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra, onOpenSouls }: MessagePageProps) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [counts, setCounts] = useState<Counts>({});
@@ -471,6 +473,30 @@ const Notifications = ({ theme, isMobile, setActiveTab, setHideExtra }: MessageP
                     }}>
                       {notification.content}
                     </div>
+                  )}
+
+                  {/* Friend requests: a way straight to where you answer them. */}
+                  {(notification.type === 'connection_request' || notification.type === 'connection_accepted') && onOpenSouls && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        markAsRead(notification.id);
+                        onOpenSouls(notification.type === 'connection_request' ? 'requests' : 'friends');
+                      }}
+                      style={{
+                        marginTop: '0.6rem',
+                        padding: '0.4rem 1.1rem',
+                        borderRadius: '0.6rem',
+                        border: `1px solid ${theme.accent}`,
+                        background: notification.type === 'connection_request' ? theme.accent : 'transparent',
+                        color: notification.type === 'connection_request' ? theme.background : theme.accent,
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {notification.type === 'connection_request' ? 'View request' : 'View friends'}
+                    </button>
                   )}
                 </div>
               </div>

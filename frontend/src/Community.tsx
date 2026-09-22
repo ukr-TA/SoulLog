@@ -30,9 +30,14 @@ interface CommunityFeedProps {
   /** A Sanctuary post to show first, with its comments open. */
   focusPostId?: number | null;
   onFocusHandled?: () => void;
+  /** Which list the Souls tab opens on. */
+  soulsTab?: 'requests' | 'friends';
+  /** Friend requests waiting for an answer — a badge on the Souls tab. */
+  pendingRequests?: number;
+  onRequestsChanged?: () => void;
 }
 
-const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab, focusPostId, onFocusHandled }) => {
+const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, setHideExtra, isMobile, onViewProfile, onOpenConversation, initialTab, focusPostId, onFocusHandled, soulsTab, pendingRequests = 0, onRequestsChanged }) => {
 
   // Sanctuary, Souls and Videos are separate pages for Back and Forward.
   const tabFromHistory = () => (navState()?.tab === 'Community' ? navState()?.sub : undefined);
@@ -132,6 +137,18 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, se
                   }}
                 >
                   {tab.label}
+                  {tab.label === ACTIVE_TAB.SOULS && pendingRequests > 0 && (
+                    <span
+                      aria-label={`${pendingRequests} friend request${pendingRequests === 1 ? '' : 's'}`}
+                      style={{
+                        marginLeft: '0.4rem', minWidth: '1.1rem', height: '1.1rem', padding: '0 0.3rem',
+                        borderRadius: '999px', background: '#FF6B6B', color: 'white',
+                        fontSize: '0.7rem', fontWeight: 700, lineHeight: '1.1rem', textAlign: 'center',
+                      }}
+                    >
+                      {pendingRequests > 99 ? '99+' : pendingRequests}
+                    </span>
+                  )}
                   {/* <IconComponent size={20} /> */}
                 </button>
               );
@@ -154,6 +171,8 @@ const CommunityFeed: React.FC<CommunityFeedProps> = ({theme, darkMode = true, se
                 darkMode={darkMode}
                 onViewProfile={onViewProfile}
                 onOpenConversation={onOpenConversation}
+                initialTab={soulsTab}
+                onRequestsChanged={onRequestsChanged}
               />
             )
           : activeTab === ACTIVE_TAB.VIDEOS ? <VideoInterface theme={theme} darkMode={darkMode} />

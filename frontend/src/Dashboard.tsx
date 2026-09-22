@@ -127,9 +127,18 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // Community's starting tab, for "Find Connections".
   const [communityTab, setCommunityTab] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (activeTab !== ACTIVE_TAB.COMMUNITY) setCommunityTab(undefined);
+    if (activeTab !== ACTIVE_TAB.COMMUNITY) { setCommunityTab(undefined); setSoulsTab(undefined); }
   }, [activeTab]);
   const findConnections = () => {
+    setCommunityTab('Souls');
+    setActiveTab(ACTIVE_TAB.COMMUNITY);
+  };
+
+  // Which list to open inside Souls — Requests from a friend-request
+  // notification, Friends from an "accepted" one.
+  const [soulsTab, setSoulsTab] = useState<'requests' | 'friends' | undefined>(undefined);
+  const openSouls = (tab: 'requests' | 'friends') => {
+    setSoulsTab(tab);
     setCommunityTab('Souls');
     setActiveTab(ACTIVE_TAB.COMMUNITY);
   };
@@ -161,17 +170,22 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   const [me, setMe] = useState<MyProfile | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // Friend requests waiting for an answer: a badge on Community, Souls
+  // and the Requests tab.
+  const [pendingRequests, setPendingRequests] = useState(0);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [openConversationId, setOpenConversationId] = useState<number | null>(null);
 
   const refreshBadges = useCallback(async () => {
     try {
-      const [notifications, messages] = await Promise.all([
+      const [notifications, messages, requests] = await Promise.all([
         get<{ unread: number }>('/notifications/unread-count/'),
         get<{ unread: number }>('/messages/unread/'),
+        get<unknown[]>('/social/requests/?direction=incoming'),
       ]);
       setUnreadNotifications(notifications.unread);
       setUnreadMessages(messages.unread);
+      setPendingRequests(requests.length);
     } catch {
       // Badges are decoration on top of working screens; a failure here
       // shouldn't produce an error message over the whole app.
@@ -222,7 +236,8 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
     // is a fallback for a client whose socket didn't connect.
     const socket = openSocket('/ws/notifications/', {
       onMessage: (event) => {
-        if (event.type === 'notification' || event.type === 'connected') refreshBadges();
+        // 'unread': a new direct message (messages don't create notifications).
+        if (event.type === 'notification' || event.type === 'connected' || event.type === 'unread') refreshBadges();
       },
     });
     const timer = setInterval(refreshBadges, 60000);
@@ -465,7 +480,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 { name: 'Dashboard', icon: <LuLayoutDashboard size={17} />, active: true },
                 { name: 'Journal', icon: <BsJournalBookmark size={16}  />, active: false },
                 { name: 'Whispers', icon: <PiChatsCircleLight size={20} />, active: false, badge: unreadMessages },
-                { name: 'Community', icon: <MdGroups size={21} />, active: false },
+                { name: 'Community', icon: <MdGroups size={21} />, active: false, badge: pendingRequests },
                 { name: 'Notification', icon: <Bell size={21} />, active: false, badge: unreadNotifications },
                 { name: 'Insights', icon: <CgInsights size={21} />, active: false },
                 { name: 'Settings', icon: <SettingsIcon size={19} />, active: false },
@@ -818,8 +833,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
           activeTab === ACTIVE_TAB.OVERVIEW ? <Overview theme={theme} darkMode={darkMode} isMobile={isMobile} setActiveTab={setActiveTab} onWriteWithPrompt={writeWithPrompt}/>
           : activeTab === ACTIVE_TAB.COMMUNITY ? (
               <CommunityFeed
-                key={communityTab ?? 'default'}
+                key={`${communityTab ?? 'default'}-${soulsTab ?? ''}`}
                 initialTab={communityTab}
+                soulsTab={soulsTab}
+                pendingRequests={pendingRequests}
+                onRequestsChanged={refreshBadges}
                 focusPostId={focusPost}
                 onFocusHandled={() => setFocusPost(null)}
                 theme={theme}
@@ -874,7 +892,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               />
             )
           : activeTab === ACTIVE_TAB.SETTINGS ? <SoulLogSettings key={`${settingsSection}-${settingsVisit}`} initialSection={settingsSection} theme={theme} darkMode={darkMode} setDarkMode={setDarkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile />
-          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab}/>
+          : activeTab === ACTIVE_TAB.NOTIFICATION ? <Notifications theme={theme} darkMode={darkMode} setHideExtra={setHideExtra} setActiveTab={setActiveTab} onOpenSouls={openSouls}/>
           /* CreateJournal takes no `backPage`: it navigates back to Journal
              itself, so the prop it was being handed was never read. */
           : activeTab === ACTIVE_TAB.LOG ? <CreateJournal key={pendingPrompt ?? 'blank'} theme={theme} setHideExtra={setHideExtra} setActiveTab={setActiveTab} isMobile={isMobile} initialPrompt={pendingPrompt}/>
@@ -893,8 +911,8 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
           boxShadow: darkMode ? 'none' : '0 -4px 20px rgba(0,0,0,0.1)',
         }}>
           {[
-            { name: 'Whispers', icon: <PiChatsCircleLight size={18} />, active: false },
-            { name: 'Community', icon: <MdGroups size={21} />, active: false },
+            { name: 'Whispers', icon: <PiChatsCircleLight size={18} />, active: false, badge: unreadMessages },
+            { name: 'Community', icon: <MdGroups size={21} />, active: false, badge: pendingRequests },
             { name: 'Dashboard', icon: <LuLayoutDashboard size={17} />, active: true },
             { name: 'Insights', icon: <CgInsights size={21} />, active: false },
             { name: 'Journal', icon: <BsJournalBookmark size={16}  />, active: false },
@@ -921,7 +939,22 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 outline: 'none',
               }}
             >
-              <span>{item.icon}</span>
+              <span style={{ position: 'relative' }}>
+                {item.icon}
+                {'badge' in item && (item.badge ?? 0) > 0 && (
+                  <span
+                    aria-label={`${item.badge} new`}
+                    style={{
+                      position: 'absolute', top: '-0.35rem', right: '-0.7rem',
+                      minWidth: '1rem', height: '1rem', padding: '0 0.25rem',
+                      borderRadius: '999px', background: '#FF6B6B', color: 'white',
+                      fontSize: '0.6rem', fontWeight: 700, lineHeight: '1rem', textAlign: 'center',
+                    }}
+                  >
+                    {(item.badge ?? 0) > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </span>
               <span style={{ fontSize: '0.6rem' }}>{item.name}</span>
             </button>
           ))}

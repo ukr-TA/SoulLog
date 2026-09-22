@@ -115,7 +115,17 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             )
 
     async def conversation_event(self, event):
-        await self.send(json.dumps({"type": event["event"], **{"data": event["payload"]}}))
+        payload = event["payload"]
+        # A message is serialised once, from the sender's point of view, and
+        # sent to everyone in the conversation. Re-label "me"/"them" for the
+        # person this socket belongs to — otherwise the receiver saw the
+        # other person's messages as their own (right-hand side, "Edit").
+        if isinstance(payload, dict) and "senderId" in payload:
+            payload = {
+                **payload,
+                "sender": "me" if payload["senderId"] == self.scope["user"].id else "them",
+            }
+        await self.send(json.dumps({"type": event["event"], **{"data": payload}}))
 
     # --- database access ----------------------------------------------------
 

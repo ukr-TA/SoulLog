@@ -504,8 +504,8 @@ def _notify_request(connection):
         recipient=connection.addressee,
         actor=connection.requester,
         kind="connection_request",
-        title="New connection request",
-        body=f"{connection.requester.fullname or connection.requester.username} wants to connect with you.",
+        title="sent you a friend request",
+        body="",
         target=connection,
     )
 
@@ -517,8 +517,8 @@ def _notify_accepted(connection):
         recipient=connection.requester,
         actor=connection.addressee,
         kind="connection_accepted",
-        title="Connection accepted",
-        body=f"{connection.addressee.fullname or connection.addressee.username} accepted your connection request.",
+        title="accepted your friend request",
+        body="",
         target=connection,
     )
 

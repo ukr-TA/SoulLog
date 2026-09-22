@@ -204,7 +204,7 @@ the WebSocket layer, and they're where a misconfiguration shows up.
 
 ```bash
 cd backend
-python manage.py test           # 224 tests
+python manage.py test           # 226 tests
 python manage.py test messaging # includes the real WebSocket tests
 ```
 

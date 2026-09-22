@@ -298,6 +298,29 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
 
+  // Tapping anywhere outside the menu (or pressing Escape) closes it. The
+  // button that opens it is ignored here so it can still toggle.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest('[role="menu"], [aria-label="Conversation options"]')) return;
+      setMenuOpen(false);
+      setConfirmLeave(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setMenuOpen(false); setConfirmLeave(false); }
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   const toggleMute = async () => {
     if (!currentFriend) return;
     const muted = !currentFriend.muted;
@@ -351,7 +374,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           </button>
         )}
         <button role="menuitem" className="w-full text-left px-4 py-3" style={{ color: theme.text, background: 'transparent' }} onClick={toggleMute}>
-          {currentFriend.muted ? 'Unmute notifications' : 'Mute notifications'}
+          {currentFriend.muted ? 'Unmute conversation' : 'Mute conversation'}
         </button>
         <button
           role="menuitem"

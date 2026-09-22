@@ -408,7 +408,7 @@ const ChatList = ({
       </div>
 
       {/* Rows */}
-      <div className="flex-1 overflow-y-auto min-h-0 pb-24 md:pb-3">
+      <div className="flex-1 overflow-y-auto min-h-0 pb-4 md:pb-3">
         {shown.length === 0 && newPeople.length === 0 && !(needle && peopleLoading) && (
           <div className="text-center px-6" style={{ paddingTop: '3.5rem', color: theme.text }}>
             <div className="text-4xl mb-2">{filter === 'archived' ? '🗂️' : filter === 'unread' ? '✨' : '💬'}</div>

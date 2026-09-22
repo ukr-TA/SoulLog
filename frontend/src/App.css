@@ -14,11 +14,11 @@
   position: sticky; /* or fixed */
   top: 0;
   z-index: 1000;
-  backdrop-filter: blur(10px);
+  /* No backdrop blur / opacity: every header sits on a solid colour, and
+     re-blurring on each scroll frame made phones stutter. */
   justify-content: space-between;
   display: flex;
   align-items: center;
-  opacity: 0.99;
   /* Avoid position: fixed if possible, use sticky instead */
 }
 
@@ -34,16 +34,30 @@
   height: 100dvh;
 }
 
-/* Bottom navigation/footer */
+/* Bottom navigation (phones).
+ *
+ * Fixed to the screen, on its own compositor layer, with no blur behind
+ * it. It used to be `position: sticky` with a backdrop blur: the phone
+ * re-positioned and re-blurred it on every scroll frame (worse while the
+ * browser's address bar slid away), which is what made it feel laggy.
+ * A spacer in the page keeps the last content clear of it. */
 .bottom-nav {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
   z-index: 1000;
-  backdrop-filter: blur(10px);
   justify-content: space-around;
   display: flex;
   align-items: center;
-  /* Or use position: fixed with proper safe-area handling */
+  transform: translateZ(0);
+  will-change: transform;
+  contain: layout paint;
+}
+
+.bottom-nav-spacer {
+  height: calc(3.75rem + env(safe-area-inset-bottom));
+  flex-shrink: 0;
 }
 
 .grid {

@@ -914,6 +914,9 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
 
       {/* Bottom Navigation - Only show when sidebar is hidden (mobile) */}
       {isMobile && (!hideExtra || ["Community"].includes(activeTab)) && (
+        <>
+        {/* Room for the fixed bar, so nothing ends up hidden under it. */}
+        <div className="bottom-nav-spacer" aria-hidden="true" />
         <nav className='bottom-nav' style={{
           background: theme.background,
           borderTop: `1px solid ${theme.border}`,
@@ -970,6 +973,7 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
             </button>
           ))}
         </nav>
+        </>
       )}
     </div>
   );

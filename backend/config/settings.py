@@ -272,6 +272,12 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOWED_ORIGIN_REGEXES = [r"^capacitor://.*$", r"^ionic://.*$"]
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "") or CORS_ALLOWED_ORIGINS
 
+# Behind an https tunnel in development (scripts/dev-phone.sh), trust the
+# tunnel's X-Forwarded-Proto so links Django builds are https as well —
+# otherwise a phone's browser blocks them as mixed content.
+if env_bool("TRUST_X_FORWARDED_PROTO"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # --- Security hardening (applied only when DEBUG is off) --------------------
 # These are the settings `manage.py check --deploy` asks for. They are gated
 # on DEBUG so local development over plain http keeps working unchanged.

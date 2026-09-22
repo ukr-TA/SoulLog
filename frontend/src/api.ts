@@ -271,7 +271,12 @@ export const upload = <T = unknown>(path: string, formData: FormData, method = '
  */
 export function socketUrl(path: string, token: string): string {
   const base = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
-  const wsBase = base.replace(/^http/, 'ws');
+  // A relative API address ("/api/v1", used when the dev server forwards
+  // the API — see vite.config.ts) means "this same site": build the socket
+  // address from the page's own, with wss:// when the page is https://.
+  const wsBase = /^https?:/.test(base)
+    ? base.replace(/^http/, 'ws')
+    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${base}`;
   const separator = path.includes('?') ? '&' : '?';
   return `${wsBase}${path}${separator}token=${encodeURIComponent(token)}`;
 }

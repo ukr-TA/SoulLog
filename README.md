@@ -58,12 +58,14 @@ Other platforms and Docker: see [`SETUP.md`](SETUP.md).
 ### On your phone (iPhone or Android)
 
 ```bash
-./scripts/dev-phone.sh   # instead of dev.sh — prints an address like http://192.168.1.5:5173
+./scripts/dev-phone.sh   # instead of dev.sh
 ```
 
-With the phone on the same Wi-Fi, open that address in Safari or Chrome.
-Use **Share → Add to Home Screen** (iPhone) or **⋮ → Add to Home screen**
-(Android) and SoulLog opens full-screen from its own icon, like an app.
+It prints a temporary `https://….trycloudflare.com` address and a QR code.
+Scan it with the phone's camera (any Wi-Fi, or mobile data), then use
+**Share → Add to Home Screen** (iPhone) or **⋮ → Add to Home screen**
+(Android) to open SoulLog full-screen from its own icon. The address is
+public while the script runs and changes every time; Ctrl+C stops it.
 
 ## What's real
 

@@ -16,4 +16,19 @@ export default defineConfig({
   // applying and the UI fell apart. The Capacitor build made that worse,
   // since a mobile app has no business requiring a CDN to render.
   plugins: [react(), tailwindcss()],
+
+  // Development only. The dev server forwards the API, uploaded media and
+  // WebSockets to Django, so a phone can use SoulLog through this one
+  // address — on the same Wi-Fi, or through a temporary tunnel (see
+  // scripts/dev-phone.sh). The Host header is kept (no changeOrigin) so the
+  // media links Django builds point back at the address the phone used.
+  server: {
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8000' },
+      '/media': { target: 'http://127.0.0.1:8000' },
+      '/ws': { target: 'ws://127.0.0.1:8000', ws: true },
+    },
+    // Tunnel addresses from `cloudflared tunnel --url` (trycloudflare.com).
+    allowedHosts: ['.trycloudflare.com'],
+  },
 })

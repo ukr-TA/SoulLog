@@ -162,6 +162,8 @@ const EMPTY: ViewedUser = {
 const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, username, onBack, onOpenConversation }: OthersProfileProps) => {
   const [darkMode] = useState(darkModeProp ?? true);
   const [isFollowing, setIsFollowing] = useState(false);
+  // The photo URL that failed to load, so the initial shows instead.
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
   const [userData, setUserData] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -510,8 +512,18 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
                         boxShadow: `0 8px 32px rgba(44, 171, 164, 0.3)`
                       }}
                     >
-                      {userData.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      {(userData.name || '?').trim().charAt(0).toUpperCase() || '?'}
                       <div className="absolute inset-0 bg-gradient-to-tr from-transparent to-white opacity-20"></div>
+                      {/* Their photo sits over the initial, and simply
+                          disappears if it fails to load. */}
+                      {userData.avatarUrl && brokenAvatar !== userData.avatarUrl && (
+                        <img
+                          src={userData.avatarUrl}
+                          alt={userData.name}
+                          onError={() => setBrokenAvatar(userData.avatarUrl)}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      )}
                     </div>
                     
                     {/* Online Status */}

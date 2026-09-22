@@ -17,7 +17,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Clock, Eye, Send } from 'lucide-react';
 import { ApiError, del, get, patch, post } from './api';
 import type { LibraryComment, Theme } from './types';
-import { EditedMark, InlineEditor } from './ui';
+import { Avatar, EditedMark, InlineEditor } from './ui';
 
 interface MessagePageProps {
   theme: Theme;
@@ -294,7 +294,11 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
     >
       {/* Video Header */}
       <div className="flex items-center gap-3 p-4">
-        <div className="text-2xl">{video.authorAvatar}</div>
+        <Avatar
+          user={{ name: video.author, initials: video.authorAvatar, avatarUrl: video.authorAvatarUrl }}
+          theme={theme}
+          size={40}
+        />
         <div className="flex-1">
           <h3 className="font-semibold text-sm" style={{ color: theme.text }}>
             {video.author}
@@ -551,18 +555,11 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
               )}
               {(commentsByVideo[video.id] || []).map((row) => (
                 <div key={row.id} className="flex gap-3">
-                  <div
-                    className="flex items-center justify-center rounded-full text-sm font-semibold"
-                    style={{
-                      width: '2rem',
-                      height: '2rem',
-                      background: theme.accent,
-                      color: theme.background,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {row.avatar}
-                  </div>
+                  <Avatar
+                    user={{ name: row.author, initials: row.avatar, avatarUrl: row.avatarUrl }}
+                    theme={theme}
+                    size={32}
+                  />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm" style={{ color: theme.text }}>{row.author}</span>

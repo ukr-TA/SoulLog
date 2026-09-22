@@ -7,7 +7,7 @@ import { SlCalender } from "react-icons/sl";
 import { LuLock } from "react-icons/lu";
 import { Pencil, Trash2, Share2 } from "lucide-react";
 import { Preferences } from '@capacitor/preferences';
-import { EditedMark, InlineEditor } from './ui';
+import { Avatar, EditedMark, InlineEditor } from './ui';
 import type { Theme } from './theme';
 import type { JournalComment, JournalEntry, JournalStats, Paginated } from './types';
 
@@ -1150,7 +1150,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab, focus, onFocusHa
                           marginBottom: '10px'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '20px' }}>{comment.avatar}</span>
+                            <Avatar user={{ name: comment.author, initials: comment.avatar, avatarUrl: comment.avatarUrl }} theme={theme} size={28} />
                             <span style={{ fontWeight: '600', fontSize: '14px', color: theme.text }}>
                               {comment.author}
                             </span>
@@ -1289,7 +1289,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab, focus, onFocusHa
                                   gap: '6px',
                                   marginBottom: '8px'
                                 }}>
-                                  <span style={{ fontSize: '16px' }}>{reply.avatar}</span>
+                                  <Avatar user={{ name: reply.author, initials: reply.avatar, avatarUrl: reply.avatarUrl }} theme={theme} size={24} />
                                   <span style={{ fontWeight: '600', fontSize: '13px', color: theme.text }}>
                                     {reply.author}
                                   </span>
@@ -1407,7 +1407,7 @@ const JournalHistoryPage = ({ theme, setBackPage, setActiveTab, focus, onFocusHa
                     color: theme.text + '80'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Replying to {replyingTo.avatar} <strong>{replyingTo.author}</strong></span>
+                      <span>Replying to <strong>{replyingTo.author}</strong></span>
                       <button
                         onClick={() => setReplyingTo(null)}
                         style={{

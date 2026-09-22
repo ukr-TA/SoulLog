@@ -28,6 +28,7 @@
   overflow-y: auto;
   /* Enable momentum scrolling on iOS */
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   transition: margin-left 0.3s ease;
   height: 100vh;
   height: 100dvh;

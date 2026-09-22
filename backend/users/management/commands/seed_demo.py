@@ -213,8 +213,11 @@ class Command(BaseCommand):
 
         count = 0
         for user in users:
-            for index in range(random.randint(8, 16)):
-                title, content, mood, tags = random.choice(ENTRIES)
+            # Sampled, not chosen with replacement: the same person writing
+            # the same entry twice looked like a bug, because it is one.
+            for index, (title, content, mood, tags) in enumerate(
+                random.sample(ENTRIES, k=random.randint(5, len(ENTRIES)))
+            ):
                 created_at = now - timedelta(
                     days=random.randint(0, days), hours=random.choice([7, 8, 13, 19, 20, 21, 22])
                 )
@@ -296,8 +299,9 @@ class Command(BaseCommand):
 
         count = 0
         for user in users:
-            for _ in range(random.randint(1, 3)):
-                content, tags = random.choice(POSTS)
+            # Distinct posts per person — the feed used to show the same
+            # author posting the same words twice.
+            for content, tags in random.sample(POSTS, k=random.randint(1, 3)):
                 post = SanctuaryPost.objects.create(
                     author=user, content=content, tags=tags, is_demo=True
                 )

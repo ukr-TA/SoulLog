@@ -19,7 +19,7 @@
  *             away from the data.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, UserPlus, Check, X, MessageCircle, MoreHorizontal, Users, Bell, Heart, Filter } from 'lucide-react';
 import { ApiError, del, get, post, type PublicUser } from './api';
 import { Avatar } from './ui';
@@ -64,6 +64,39 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
     activity: '',
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
+
+  // The filter panel behaves like a popover: a click anywhere outside it
+  // (or Escape) closes it and throws away choices that weren't applied —
+  // the same as pressing Cancel. The Filter button is excluded so that
+  // clicking it toggles instead of closing and instantly reopening.
+  const filterPanelRef = useRef<HTMLDivElement | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeFilters = useCallback(() => {
+    setFilters(appliedFilters);
+    setShowFilters(false);
+  }, [appliedFilters]);
+
+  useEffect(() => {
+    if (!showFilters) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (filterPanelRef.current?.contains(target)) return;
+      if (filterButtonRef.current?.contains(target)) return;
+      closeFilters();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeFilters();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showFilters, closeFilters]);
 
   const [suggestions, setSuggestions] = useState<PublicUser[]>([]);
   const [requests, setRequests] = useState<PublicUser[]>([]);
@@ -178,6 +211,9 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
     if (type === 'friend') return user.presence_label || 'Connected';
     if (type === 'request') return user.requested_at ? relativeTime(user.requested_at) : '';
     const mutual = user.mutual_connections ?? 0;
+    // The suggestion's reason often says this already ("2 mutual
+    // connections"); saying it twice on one card was noise.
+    if (/mutual/i.test(user.reason || '')) return '';
     return mutual ? `${mutual} mutual` : '';
   };
 
@@ -195,8 +231,10 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
       }}
       onClick={() => onViewProfile?.(user.username)}
     >
-      <div className='flex items-center justify-between gap-2'>
-        <div className="flex items-center gap-2 mb-2">
+      {/* The left side shrinks and truncates; the status on the right
+          never wraps and never leaves the card. */}
+      <div className='flex items-start justify-between gap-2'>
+        <div className="flex items-center gap-2 mb-2 flex-1 min-w-0">
           <div className="relative">
             <Avatar user={user} theme={theme} />
             {type === 'friend' && user.presence !== 'hidden' && (
@@ -215,7 +253,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
             </p>
           </div>
         </div>
-        <div className="flex flex-col items-end justify-between text-xs mb-2" style={{ color: theme.secondary }}>
+        <div className="flex flex-col items-end justify-between text-xs mb-2 shrink-0 whitespace-nowrap text-right" style={{ color: theme.secondary }}>
             {type === 'suggestion' && user.reason && (
               <span style={{ color: theme.text, opacity: 0.5 }}>
                 {user.reason}
@@ -405,7 +443,9 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
         }}
       >
         <div className="max-w-7xl mx-auto py-2">
-          <div className="flex items-center justify-between">
+          {/* Wraps onto a second line on narrow windows instead of pushing
+              the search box and Filter button off the edge. */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-4">
               {/* Compact Tabs */}
               <div className="flex gap-2">
@@ -445,7 +485,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
             </div>
             <div className="flex items-center gap-2">
               <div
-                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg min-w-0"
                 style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}
               >
                 <Search size={14} style={{ color: theme.text, opacity: 0.6 }} />
@@ -458,7 +498,9 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
                 />
               </div>
               <button
-                onClick={() => setShowFilters(!showFilters)}
+                ref={filterButtonRef}
+                onClick={() => (showFilters ? closeFilters() : setShowFilters(true))}
+                aria-expanded={showFilters}
                 className={`px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 ${showFilters ? 'shadow-md' : ''}`}
                 style={{
                   backgroundColor: showFilters ? theme.accent : theme.surface,
@@ -487,6 +529,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
         {/* Filter Options */}
         {showFilters && (
           <div
+            ref={filterPanelRef}
             className="p-4 rounded-lg border mb-4 text-sm transition-all duration-300 text-left"
             style={{
               backgroundColor: theme.surface,
@@ -593,6 +636,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
                   const cleared = { location: '', mutualFriends: '', interests: '', activity: '' };
                   setFilters(cleared);
                   setAppliedFilters(cleared);
+                  setShowFilters(false);
                 }}
                 className="text-sm font-medium transition-colors"
                 style={{ color: theme.secondary }}
@@ -602,10 +646,7 @@ const ConnectionsPage = ({ theme, darkMode, onOpenConversation, onViewProfile }:
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    setFilters(appliedFilters);
-                    setShowFilters(false);
-                  }}
+                  onClick={closeFilters}
                   className="px-4 py-2 rounded-md text-sm font-medium transition-colors border"
                   style={{
                     borderColor: theme.border,

@@ -37,28 +37,42 @@ export const Avatar = ({
   user,
   theme,
   size = 36,
+  background,
+  color,
 }: {
   user?: AvatarUser | null;
   theme?: Partial<Theme>;
   size?: number;
+  /** Override the circle's fill (a colour or gradient) behind the initial. */
+  background?: string;
+  color?: string;
 }) => {
-  if (user?.avatar_url || user?.avatarUrl) {
+  const src = user?.avatar_url || user?.avatarUrl || null;
+  // The photo URL that failed to load, if any. A missing or unreadable
+  // upload used to leave the browser's broken-image icon with the name
+  // (in lowercase, as typed) printed over it; now it falls back to the
+  // initial like everyone without a photo.
+  const [failed, setFailed] = useState<string | null>(null);
+
+  if (src && failed !== src) {
     return (
       <img
-        src={user.avatar_url || user.avatarUrl || undefined}
-        alt={user.name}
-        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }}
+        src={src}
+        alt={user?.name || ''}
+        onError={() => setFailed(src)}
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
       />
     );
   }
   return (
     <div
+      aria-hidden="true"
       style={{
         width: size,
         height: size,
         borderRadius: '50%',
-        background: theme?.accent || '#CFAE61',
-        color: theme?.background || '#1B1F3B',
+        background: background || theme?.accent || '#CFAE61',
+        color: color || theme?.background || '#1B1F3B',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -67,9 +81,18 @@ export const Avatar = ({
         flexShrink: 0,
       }}
     >
-      {user?.initials || user?.avatar || (user?.name || '?')[0]?.toUpperCase()}
+      {initialFor(user)}
     </div>
   );
+};
+
+/**
+ * The one letter drawn for someone without a photo: always a single
+ * capital, whatever the server or the caller handed over.
+ */
+const initialFor = (user?: AvatarUser | null): string => {
+  const source = (user?.initials || user?.name || '').trim();
+  return source ? source[0].toUpperCase() : '?';
 };
 
 

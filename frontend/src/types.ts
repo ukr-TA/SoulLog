@@ -190,6 +190,7 @@ export interface JournalComment {
   id: number;
   author: string;
   avatar: string;
+  avatarUrl?: string | null;
   time: string;
   content: string;
   hearts: number;
@@ -242,6 +243,7 @@ export interface LibraryComment {
   id: number;
   author: string;
   avatar: string;
+  avatarUrl?: string | null;
   content: string;
   timestamp: string;
   editedAt?: string | null;

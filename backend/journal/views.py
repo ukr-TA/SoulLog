@@ -357,6 +357,7 @@ def _get_visible_entry(user, entry_id, for_comment=False):
 class CommentSerializer(serializers.ModelSerializer):
     author = serializers.CharField(source="author.username", read_only=True)
     avatar = serializers.SerializerMethodField()
+    avatarUrl = serializers.SerializerMethodField()
     time = serializers.DateTimeField(source="created_at", format="%b %d, %Y, %I:%M %p", read_only=True)
     hearts = serializers.SerializerMethodField()
     reacted = serializers.SerializerMethodField()
@@ -369,17 +370,25 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = JournalComment
         fields = [
-            "id", "author", "avatar", "time", "content", "hearts", "reacted",
+            "id", "author", "avatar", "avatarUrl", "time", "content", "hearts", "reacted",
             "replies", "parent", "editedAt", "isOwn",
         ]
         read_only_fields = [
-            "id", "author", "avatar", "time", "hearts", "reacted", "replies",
+            "id", "author", "avatar", "avatarUrl", "time", "hearts", "reacted", "replies",
             "editedAt", "isOwn",
         ]
         extra_kwargs = {"parent": {"write_only": True, "required": False}}
 
     def get_avatar(self, obj):
-        return obj.author.username[0].upper() if obj.author.username else "?"
+        # Same letter as everywhere else: from the display name, capitalised.
+        from users.public import initials_for
+
+        return initials_for(obj.author)
+
+    def get_avatarUrl(self, obj):  # noqa: N802 — matches the serializer field name
+        from users.public import avatar_url
+
+        return avatar_url(obj.author, self.context.get("request"))
 
     def get_isOwn(self, obj):  # noqa: N802 — matches the serializer field name
         request = self.context.get("request")

@@ -15,7 +15,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, del, get, patch as apiPatch, post as apiPost, upload } from './api';
-import { EditedMark, InlineEditor } from './ui';
+import { Avatar, EditedMark, InlineEditor } from './ui';
 import type { Theme } from './theme';
 
 interface MediaFile {
@@ -655,19 +655,12 @@ function Sanctuary({
                     minWidth: 0,
                     flex: 1
                   }}>
-                    <div style={{
-                      width: '3rem',
-                      height: '3rem',
-                      background: `linear-gradient(135deg, ${theme.secondary}, ${theme.accent})`,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.25rem',
-                      flexShrink: 0
-                    }}>
-                      {post.author.avatar}
-                    </div>
+                    <Avatar
+                      user={{ name: post.author.name, initials: post.author.avatar, avatarUrl: post.author.avatarUrl }}
+                      size={48}
+                      background={`linear-gradient(135deg, ${theme.secondary}, ${theme.accent})`}
+                      color={theme.text}
+                    />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <h3
@@ -920,19 +913,12 @@ function Sanctuary({
                         alignItems: 'flex-start',
                         gap: '0.75rem'
                       }}>
-                        <div style={{
-                          width: '2rem',
-                          height: '2rem',
-                          background: `linear-gradient(135deg, #22c55e, ${theme.secondary})`,
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.875rem',
-                          flexShrink: 0
-                        }}>
-                          {comment.avatar}
-                        </div>
+                        <Avatar
+                          user={{ name: comment.author, initials: comment.avatar, avatarUrl: comment.avatarUrl }}
+                          size={32}
+                          background={`linear-gradient(135deg, #22c55e, ${theme.secondary})`}
+                          color={theme.text}
+                        />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
                             display: 'flex',

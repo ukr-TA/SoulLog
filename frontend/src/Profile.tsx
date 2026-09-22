@@ -14,7 +14,7 @@
  * from their own activity — an empty list is the right answer on day one.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft } from 'lucide-react';
 import { ApiError, api, get, post } from './api';
 import { profileShare, shareOrCopy } from './links';
@@ -245,7 +245,9 @@ const SoulLogOwnProfile = ({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const profileImage = userData.avatarUrl;
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
+  // A photo that fails to load falls back to the initial, not a blank circle.
+  const profileImage = userData.avatarUrl && brokenAvatar !== userData.avatarUrl ? userData.avatarUrl : null;
   const coverImage = userData.coverUrl;
 
   const load = useCallback(async () => {
@@ -324,9 +326,13 @@ const SoulLogOwnProfile = ({
   }, [load]);
 
   /** Briefly confirm something happened, then clear. */
+  // One timer at a time: an earlier message's timer used to clear a newer
+  // message early (share, then save, and "About Me updated" vanished).
+  const flashTimer = useRef<number | undefined>(undefined);
   const flash = (message: string) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(null), 3000);
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setNotice(null), 3000);
   };
 
   /**
@@ -528,13 +534,17 @@ const SoulLogOwnProfile = ({
                         borderColor: theme.surface,
                         color: theme.text,
                         boxShadow: `0 8px 32px rgba(207, 174, 97, 0.3)`,
-                        backgroundImage: profileImage ? `url(${profileImage})` : 'none',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
                       }}
                     >
-                      {!profileImage && (
-                        (userData.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      {profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt={userData.name}
+                          onError={() => setBrokenAvatar(profileImage)}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        (userData.name || '?').trim().charAt(0).toUpperCase() || '?'
                       )}
                     </div>
                     

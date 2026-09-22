@@ -246,3 +246,30 @@ class TaglineTests(APITestCase):
             self.client.get("/api/v1/profile/", **auth_header(token)).data["tagline"],
             "Mindful explorer",
         )
+
+
+class SeedDemoTests(APITestCase):
+    def test_no_one_posts_or_writes_the_same_thing_twice(self):
+        """The Sanctuary feed showed the same author posting the same words twice."""
+        from django.db.models import Count
+
+        from sanctuary.models import SanctuaryPost
+
+        call_command("seed_demo", verbosity=0)
+        self.assertFalse(
+            SanctuaryPost.objects.values("author", "content").annotate(n=Count("id")).filter(n__gt=1).exists()
+        )
+        self.assertFalse(
+            JournalEntry.objects.values("owner", "title").annotate(n=Count("id")).filter(n__gt=1).exists()
+        )
+
+
+class CommentAvatarTests(APITestCase):
+    def test_journal_comments_carry_a_capital_initial_and_photo_field(self):
+        token = register_and_login(self.client, "lowercase")
+        entry = JournalEntry.objects.create(owner=_user("lowercase"), title="t", content="c", visibility="community")
+        self.client.post(f"/api/v1/journal/{entry.id}/comments/", {"content": "hi"}, format="json", **auth_header(token))
+        rows = self.client.get(f"/api/v1/journal/{entry.id}/comments/", **auth_header(token)).data
+        rows = rows.get("results", rows) if isinstance(rows, dict) else rows
+        self.assertEqual(rows[0]["avatar"], "L")
+        self.assertIn("avatarUrl", rows[0])

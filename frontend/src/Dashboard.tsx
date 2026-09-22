@@ -72,6 +72,8 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   const [backPage, setBackPage] = useState(ACTIVE_TAB.OVERVIEW);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hideExtra, setHideExtra] = useState(false);
+  // Set when the signed-in user's photo fails to load, so the initial shows instead.
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
   // A prompt handed from the Dashboard home to the composer. Cleared the
   // moment the user is anywhere else, so opening the composer later from
@@ -476,10 +478,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                   position: 'relative',
                   flexShrink: 0
                 }}>
-                  {me?.avatar_url ? (
+                  {me?.avatar_url && !avatarBroken ? (
                     <img
                       src={me.avatar_url}
                       alt={displayName}
+                      onError={() => setAvatarBroken(true)}
                       style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -616,10 +619,11 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
                 setActiveTab(ACTIVE_TAB.ACCOUNTS);
               }}
               >
-                {me?.avatar_url ? (
+                {me?.avatar_url && !avatarBroken ? (
                   <img
                     src={me.avatar_url}
                     alt={displayName}
+                    onError={() => setAvatarBroken(true)}
                     style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
                   />
                 ) : (

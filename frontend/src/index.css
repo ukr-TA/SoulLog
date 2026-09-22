@@ -31,9 +31,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain; /* reduce pull-to-refresh/chain up */
+/*
+ * Pull-to-refresh / bounce guard, on the page itself only.
+ *
+ * This used to be set on `*`, i.e. on every element. Any element with
+ * `overflow: hidden` (every rounded post and video card) then counted as
+ * a scroll container that refused to hand the scroll on, so in Chrome on
+ * macOS a trackpad or wheel scroll that started over a post went nowhere.
+ */
+html,
+body {
+  overscroll-behavior-y: none;
 }
 
 a {

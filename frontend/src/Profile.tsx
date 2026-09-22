@@ -16,7 +16,7 @@
 
 import { goBack } from './nav';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, MapPin, Calendar, MessageCircle, Users, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft } from 'lucide-react';
+import { Camera, MapPin, Calendar, MessageCircle, Heart, Share2, Award, BookOpen, Target, TrendingUp, Sparkles, Edit3, Eye, ArrowLeft, NotebookPen, UserPen, BarChart3, UserPlus } from 'lucide-react';
 import { ApiError, api, get, post } from './api';
 import { profileShare, shareOrCopy } from './links';
 import type { Theme } from './theme';
@@ -513,32 +513,42 @@ const SoulLogOwnProfile = ({
             {/* Hero Section */}
             <ProfileCard theme={theme}>
               <div className="relative">
-                {/* Cover Image */}
-                <div 
-                  className="h-35 rounded-xl mb-6 relative overflow-hidden flex items-center justify-center opacity-50"
-                  style={{ 
+                {/* Cover — full strength, fading into the card so the
+                    name below always reads cleanly. */}
+                <div
+                  className="rounded-xl relative overflow-hidden"
+                  style={{
+                    height: '8.5rem',
                     backgroundColor: theme.background,
-                    backgroundImage: coverImage ? `url(${coverImage})` : 'none',
+                    backgroundImage: coverImage
+                      ? `linear-gradient(to bottom, transparent 45%, ${theme.surface}), url(${coverImage})`
+                      : `linear-gradient(135deg, ${theme.accent}40, ${theme.secondary}33)`,
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    backgroundPosition: 'center',
                   }}
                 >
-                  <Button theme={theme} variant="outline" size="sm" className="absolute top-2 right-2 bg-black bg-opacity-30 text-white !text-xs" onClick={() => handleImageUpload('cover')}>
-                    <Camera className="w-3 h-3" />
-                    Edit
-                  </Button>
+                  <button
+                    onClick={() => handleImageUpload('cover')}
+                    aria-label="Change cover photo"
+                    title="Change cover photo"
+                    className="absolute top-2 right-2 rounded-full flex items-center justify-center"
+                    style={{ width: '2rem', height: '2rem', padding: 0, borderRadius: '9999px', background: 'rgba(0,0,0,0.45)', color: '#fff', border: 'none' }}
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
                 </div>
 
-                {/* Profile Picture */}
-                <div className="relative mb-4 -mt-16 flex justify-center">
+                {/* Photo */}
+                <div className="relative flex justify-center" style={{ marginTop: '-3rem' }}>
                   <div className="relative">
-                    <div 
-                      className="w-20 h-20 rounded-full border-4 flex items-center justify-center text-lg font-bold relative overflow-hidden"
-                      style={{ 
-                        backgroundColor: profileImage ? 'transparent' : theme.accent, 
-                        borderColor: theme.surface,
-                        color: theme.text,
-                        boxShadow: `0 8px 32px rgba(207, 174, 97, 0.3)`,
+                    <div
+                      className="rounded-full flex items-center justify-center font-bold relative overflow-hidden"
+                      style={{
+                        width: '6rem', height: '6rem', fontSize: '2rem',
+                        border: `4px solid ${theme.surface}`,
+                        backgroundColor: profileImage ? 'transparent' : theme.accent,
+                        color: theme.background,
+                        boxShadow: `0 8px 32px ${theme.accent}4d`,
                       }}
                     >
                       {profileImage ? (
@@ -552,79 +562,90 @@ const SoulLogOwnProfile = ({
                         (userData.name || '?').trim().charAt(0).toUpperCase() || '?'
                       )}
                     </div>
-                    
-                    <div 
-                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 cursor-pointer hover:scale-110 transition-all"
-                      style={{ 
-                        backgroundColor: theme.secondary,
-                        borderColor: theme.surface,
-                        color: theme.text
-                      }}
+                    <button
                       onClick={() => handleImageUpload('profile')}
+                      aria-label="Change profile photo"
+                      title="Change profile photo"
+                      className="absolute rounded-full flex items-center justify-center hover:scale-110 transition-all"
+                      style={{
+                        right: 0, bottom: 0, width: '1.9rem', height: '1.9rem', padding: 0, borderRadius: '9999px',
+                        backgroundColor: theme.secondary, border: `3px solid ${theme.surface}`, color: theme.text,
+                      }}
                     >
-                      <Camera className="w-3 h-3" />
-                    </div>
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Profile Info */}
-                <div className="text-center">
-                  <div className="flex flex-col justify-center items-center mb-4 gap-3">
-                    <h3 className="text-xl font-normal">
-                      {userData.name}
-                    </h3>
-                    
-                    <p className="text-sm opacity-90 flex items-start justify-center">
-                      {userData.title}
-                    </p>
-                    
-                    <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-sm opacity-75">
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.secondary}15` }}>
-                        <Calendar className="w-4 h-4" />
-                        Joined {userData.joinDate}
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.secondary}15` }}>
-                        <MapPin className="w-4 h-4" />
-                        {userData.location}
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.accent}15` }}>
-                        <Users className="w-4 h-4" />
-                        {userData.followers.toLocaleString()} followers
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full" style={{ backgroundColor: `${theme.accent}15` }}>
-                        <Users className="w-4 h-4" />
-                        {userData.following.toLocaleString()} following
-                      </div>
-                    </div>
-
-                    <div className='flex gap-2 w-full'>
-                      <Button theme={theme} className="flex justify-center items-center gap-2 w-full" variant="outline" size="sm" onClick={() => onEditProfile?.()}>
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Edit Profile
-                      </Button>
-                      <Button theme={theme} className="w-full" variant="outline" onClick={handleShareProfile}>
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Share Profile
-                      </Button>
-                    </div>
-                    
+                {/* Name, handle, tagline */}
+                <div className="text-center mt-3">
+                  <h3 className="text-2xl font-semibold leading-tight">{userData.name}</h3>
+                  {userData.username && <p className="text-sm opacity-60 mt-0.5">@{userData.username}</p>}
+                  {userData.title && <p className="text-sm opacity-90 mt-2 px-4">{userData.title}</p>}
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 text-xs opacity-65">
+                    {userData.location && (
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{userData.location}</span>
+                    )}
+                    {userData.joinDate && (
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Joined {userData.joinDate}</span>
+                    )}
                   </div>
+                </div>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-1 !gap-3 md:!grid-cols-3">
-                    <Button theme={theme} variant="primary" onClick={openJournalModal}>
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      Write Journal
-                    </Button>
-                    <Button theme={theme} variant="secondary" onClick={() => setActiveTab('Insights')}>
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      View Analytics
-                    </Button>
-                    <Button theme={theme} variant="outline" onClick={() => (onFindConnections ? onFindConnections() : setActiveTab('Community'))}>
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Find Connections
-                    </Button>
-                  </div>
+                {/* The numbers people look for, in one strip */}
+                <div
+                  className="flex mt-4 rounded-xl"
+                  style={{
+                    backgroundColor: `${theme.accent}0f`, border: `1px solid ${theme.accent}26`,
+                  }}
+                >
+                  {[
+                    { value: userData.stats.totalEntries, label: 'Entries' },
+                    { value: userData.followers, label: 'Followers' },
+                    { value: userData.following, label: 'Following' },
+                  ].map((item, index) => (
+                    <div
+                      key={item.label}
+                      className="text-center py-3"
+                      style={{ flex: 1, minWidth: 0, borderLeft: index ? `1px solid ${theme.accent}26` : 'none' }}
+                    >
+                      <div className="text-lg font-semibold" style={{ color: theme.accent }}>{item.value.toLocaleString()}</div>
+                      <div className="text-xs opacity-65">{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions — icons only. Each says what it does on hover
+                    and to screen readers; Write is the main one. */}
+                <div className="flex items-center justify-center mt-5" style={{ gap: '0.9rem' }}>
+                  {[
+                    { label: 'Edit profile', icon: <UserPen className="w-5 h-5" />, onClick: () => onEditProfile?.() },
+                    { label: 'Share profile', icon: <Share2 className="w-5 h-5" />, onClick: handleShareProfile },
+                    { label: 'Write journal', icon: <NotebookPen className="w-6 h-6" />, onClick: openJournalModal, primary: true },
+                    { label: 'View analytics', icon: <BarChart3 className="w-5 h-5" />, onClick: () => setActiveTab('Insights') },
+                    { label: 'Find connections', icon: <UserPlus className="w-5 h-5" />, onClick: () => (onFindConnections ? onFindConnections() : setActiveTab('Community')) },
+                  ].map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={action.onClick}
+                      aria-label={action.label}
+                      title={action.label}
+                      className="rounded-full flex items-center justify-center transition-all hover:-translate-y-0.5 active:scale-95"
+                      style={{
+                        borderRadius: '9999px',
+                        width: action.primary ? '3.5rem' : '2.75rem',
+                        height: action.primary ? '3.5rem' : '2.75rem',
+                        padding: 0,
+                        flexShrink: 0,
+                        backgroundColor: action.primary ? theme.accent : `${theme.accent}14`,
+                        color: action.primary ? theme.background : theme.accent,
+                        border: action.primary ? 'none' : `1px solid ${theme.accent}40`,
+                        boxShadow: action.primary ? `0 6px 20px ${theme.accent}55` : 'none',
+                      }}
+                    >
+                      {action.icon}
+                    </button>
+                  ))}
                 </div>
               </div>
             </ProfileCard>
@@ -684,6 +705,31 @@ const SoulLogOwnProfile = ({
                 />
               </div>
             </ProfileCard>
+
+            {/* Phone: stats & achievements (in Insights) sit above your journals. */}
+            {isMobile && (
+              <button
+                onClick={onOpenInsights}
+                className="w-full flex items-center gap-3 rounded-xl text-left"
+                style={{
+                  padding: '0.9rem 1rem',
+                  background: `linear-gradient(135deg, ${theme.accent}22, ${theme.secondary}1a)`,
+                  border: `1px solid ${theme.accent}44`,
+                  color: theme.text,
+                }}
+              >
+                <span className="text-2xl">🏅</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold text-sm">Stats & achievements</span>
+                  <span className="block text-xs opacity-70 truncate">
+                    {userData.recentAchievements.length > 0
+                      ? `${userData.recentAchievements.length} earned · see them in Insights`
+                      : 'Your journey stats and badges are in Insights'}
+                  </span>
+                </span>
+                <span style={{ color: theme.accent }}>›</span>
+              </button>
+            )}
 
             {/* My Top Journals */}
             <ProfileCard theme={theme}>
@@ -778,29 +824,7 @@ const SoulLogOwnProfile = ({
           <div className="space-y-6">
             {/* On a phone, Journey Stats and Achievements live in Insights
                 and My Interests is left out, to keep Profile short. */}
-            {isMobile ? (
-              <button
-                onClick={onOpenInsights}
-                className="w-full flex items-center gap-3 rounded-xl text-left"
-                style={{
-                  padding: '0.9rem 1rem',
-                  background: `linear-gradient(135deg, ${theme.accent}22, ${theme.secondary}1a)`,
-                  border: `1px solid ${theme.accent}44`,
-                  color: theme.text,
-                }}
-              >
-                <span className="text-2xl">🏅</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block font-semibold text-sm">Stats & achievements</span>
-                  <span className="block text-xs opacity-70 truncate">
-                    {userData.recentAchievements.length > 0
-                      ? `${userData.recentAchievements.length} earned · see them in Insights`
-                      : 'Your journey stats and badges are in Insights'}
-                  </span>
-                </span>
-                <span style={{ color: theme.accent }}>›</span>
-              </button>
-            ) : (
+            {!isMobile && (
               <>
             {/* Journey Stats */}
             <ProfileCard theme={theme}>

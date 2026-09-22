@@ -26,6 +26,8 @@ dist-ssr
 # The native projects are committed (see the root .gitignore for why);
 # only their build output is ignored, and that is listed there.
 icons/
+# ...but the web app's own home-screen icons are part of the source.
+!public/icons/
 # Local environment files. `.env.example` is committed on purpose.
 .env
 .env.*

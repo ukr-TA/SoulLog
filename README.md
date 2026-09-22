@@ -55,6 +55,16 @@ rather than faked.
 Open <http://localhost:5173> and sign in as `sarah.demo` / `SoulLogDemo!2024`.
 Other platforms and Docker: see [`SETUP.md`](SETUP.md).
 
+### On your phone (iPhone or Android)
+
+```bash
+./scripts/dev-phone.sh   # instead of dev.sh — prints an address like http://192.168.1.5:5173
+```
+
+With the phone on the same Wi-Fi, open that address in Safari or Chrome.
+Use **Share → Add to Home Screen** (iPhone) or **⋮ → Add to Home screen**
+(Android) and SoulLog opens full-screen from its own icon, like an app.
+
 ## What's real
 
 **Private by default.** Journaling with photo and voice attachments,

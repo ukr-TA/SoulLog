@@ -691,6 +691,28 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
               gap: '1rem',
               alignItems: 'center',
             }}>
+              {/* Settings — the phone layout has no left bar, so this is
+                  the way in on a phone. */}
+              <button
+                aria-label="Settings"
+                onClick={() => openTab(ACTIVE_TAB.SETTINGS)}
+                style={{
+                  background: theme.gradient,
+                  borderRadius: '50%',
+                  width: '2.5rem',
+                  height: '2.5rem',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: theme.accent,
+                  border: 'none',
+                }}
+              >
+                <SettingsIcon size={19} />
+              </button>
+
               {/* Notifications */}
               <button style={{
                 background: theme.gradient,
@@ -844,7 +866,8 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
         <nav className='bottom-nav' style={{
           background: theme.background,
           borderTop: `1px solid ${theme.border}`,
-          padding: '0.2rem',
+          // Clear of the iPhone home bar when opened from the home screen.
+          padding: '0.2rem 0.2rem calc(0.2rem + env(safe-area-inset-bottom))',
           boxShadow: darkMode ? 'none' : '0 -4px 20px rgba(0,0,0,0.1)',
         }}>
           {[

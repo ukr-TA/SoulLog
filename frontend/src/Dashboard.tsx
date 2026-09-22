@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import SoulLog from './assets/SoulLog.svg';
 import Overview from './Overview';
 import CommunityFeed from './Community';
@@ -200,29 +200,35 @@ const Dashboard = ({ darkMode, setDarkMode, theme, isMobile }: DashboardProps) =
   // The Back button / swipe-back gesture.
   //
   // Screens here are switched in React state, not by URL, so the browser
-  // had nothing to go back to and Back left the app entirely. Now any
-  // screen other than the Dashboard owns exactly one history entry: Back
-  // from anywhere returns to the Dashboard, and Back from the Dashboard
-  // leaves as before. On Android the same applies to the hardware back
-  // button, which Capacitor maps onto this history.
+  // had nothing to go back to and Back left the app entirely. Now every
+  // screen you open is recorded in the browser's history, so Back goes to
+  // the previous screen — the way it does on any website — and Back from
+  // the first screen leaves the app. On Android the hardware back button
+  // follows the same history.
+  const cameFromHistory = useRef(false);
+  const hasHistory = useRef(false);
   useEffect(() => {
     if (!activeTab) return;
-    const onDashboard = activeTab === ACTIVE_TAB.OVERVIEW;
-    const hasEntry = (window.history.state as { soullog?: string } | null)?.soullog === 'inner';
-    if (!onDashboard && !hasEntry) {
-      window.history.pushState({ soullog: 'inner' }, '', window.location.href);
-    } else if (onDashboard && hasEntry) {
-      // Arrived on the Dashboard by a click rather than Back: drop the
-      // extra entry so the next Back leaves instead of doing nothing.
-      window.history.back();
+    if (cameFromHistory.current) {
+      // This change *is* a Back/Forward step; recording it again would
+      // wipe out the forward history.
+      cameFromHistory.current = false;
+      return;
+    }
+    const entry = { soullog: true, tab: activeTab };
+    if (!hasHistory.current) {
+      window.history.replaceState(entry, '', window.location.href);
+      hasHistory.current = true;
+    } else if ((window.history.state as { tab?: string } | null)?.tab !== activeTab) {
+      window.history.pushState(entry, '', window.location.href);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    const onPopState = () => {
-      if ((window.history.state as { soullog?: string } | null)?.soullog !== 'inner') {
-        setActiveTab(ACTIVE_TAB.OVERVIEW);
-      }
+    const onPopState = (event: PopStateEvent) => {
+      const state = event.state as { soullog?: boolean; tab?: string } | null;
+      cameFromHistory.current = true;
+      setActiveTab(state?.soullog && state.tab ? state.tab : ACTIVE_TAB.OVERVIEW);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);

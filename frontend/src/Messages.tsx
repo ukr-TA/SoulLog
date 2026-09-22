@@ -749,18 +749,22 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             borderColor: theme.border
           }}
         >
-          <div className="flex gap-2 items-center">
-            <Search size={18} style={{ color: theme.text, opacity: 0.5 }} />
+          {/* One pill with the icon inside it, and the text sitting in
+              its vertical middle (it used to be pushed down by top-only
+              padding, so it sat low next to the icon). */}
+          <div
+            className="flex gap-2 items-center px-4 rounded-full"
+            style={{ backgroundColor: theme.chatBg, height: '2.5rem' }}
+          >
+            <Search size={18} className="flex-shrink-0" style={{ color: theme.text, opacity: 0.5 }} />
             <input
               type="text"
               placeholder="Search souls..."
+              aria-label="Search souls"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-1 pr-4 pt-2 rounded-full outline-none text-md"
-              style={{
-                backgroundColor: theme.chatBg,
-                color: theme.text
-              }}
+              className="flex-1 min-w-0 h-full bg-transparent outline-none text-base leading-none"
+              style={{ color: theme.text, padding: 0, margin: 0 }}
             />
           </div>
         </div>

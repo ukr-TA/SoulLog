@@ -150,3 +150,14 @@ CI runs all of it against a real PostgreSQL, plus `manage.py check
 
 For the phone app — building it, the two permissions it declares and why,
 and the device checks CI cannot do — see `backend/docs/mobile.md`.
+
+## License
+
+**© Utsuk Kharel. All rights reserved.** This project is shared publicly as
+a portfolio piece only — it is **not open source**. You're welcome to read
+the code to evaluate my work, but you may not copy, modify, redistribute,
+deploy or reuse any part of it, or use the SoulLog name and design,
+without my written permission. See [`LICENSE`](LICENSE).
+
+Interested in the project or in working together? Email
+burgeon.utsuk@gmail.com.

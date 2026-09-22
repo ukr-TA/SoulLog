@@ -3,12 +3,11 @@
 ## Quickest: macOS, two commands
 
 ```bash
-./scripts/setup-mac.sh   # once — installs what's missing, creates the DB, seeds demo data
+./scripts/setup-mac.sh   # once — installs what's missing and creates the DB (add --demo for sample accounts)
 ./scripts/dev.sh         # every time — API on :8000 and the app on :5173, Ctrl+C stops both
 ```
 
-Then open <http://localhost:5173> and sign in as `sarah.demo` /
-`SoulLogDemo!2024`. The setup script needs [Homebrew](https://brew.sh)
+Then open <http://localhost:5173> and create an account. The setup script needs [Homebrew](https://brew.sh)
 and is safe to re-run: each step checks before it acts.
 
 The rest of this document is the same thing done by hand, and the Docker

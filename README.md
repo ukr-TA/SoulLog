@@ -52,7 +52,7 @@ rather than faked.
 ./scripts/dev.sh         # every time: API on :8000 and the app on :5173
 ```
 
-Open <http://localhost:5173> and sign in as `sarah.demo` / `SoulLogDemo!2024`.
+Open <http://localhost:5173> and create an account. (Want sample data to look around? `python manage.py seed_demo` adds demo accounts; `clear_demo` removes them.)
 Other platforms and Docker: see [`SETUP.md`](SETUP.md).
 
 ### On your phone (iPhone or Android)

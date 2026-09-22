@@ -123,7 +123,7 @@ qr.add_data(sys.argv[1])
 qr.print_ascii(invert=True)
 PY
 fi
-echo "  Demo login: sarah.demo / SoulLogDemo!2024   (Ctrl+C to stop)"
+echo "  Sign in or create an account.   (Ctrl+C to stop)"
 echo "  The tunnel address is public while this runs and changes each time."
 echo
 

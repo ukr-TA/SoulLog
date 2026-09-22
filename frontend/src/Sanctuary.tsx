@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, del, get, patch as apiPatch, post as apiPost, upload } from './api';
 import { Avatar, EditedMark, InlineEditor } from './ui';
+import PullToRefresh from './PullToRefresh';
 import type { Theme } from './theme';
 
 interface MediaFile {
@@ -386,6 +387,8 @@ function Sanctuary({
 
   const handleMediaUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video'): void => {
     const file = event.target.files?.[0];
+    // Clear the picker so picking again after a warning still works.
+    event.target.value = '';
     if (!file) return;
 
     // A client-side check for a fast, friendly message. The real limit is
@@ -402,7 +405,8 @@ function Sanctuary({
       return;
     }
     if (file.size > 100 * 1024 * 1024) {
-      setError('That file is larger than 100MB.');
+      const sizeMb = Math.round(file.size / (1024 * 1024));
+      setError(`That ${type === 'video' ? 'video' : 'photo'} is ${sizeMb} MB. The limit is 100 MB, so please choose a smaller one.`);
       return;
     }
 
@@ -420,6 +424,7 @@ function Sanctuary({
     setMediaPreview(null);
   };
   return (
+    <PullToRefresh theme={theme} onRefresh={() => loadFeed(false)}>
     <div>
 
         {/* Create Post */}
@@ -452,7 +457,8 @@ function Sanctuary({
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                placeholder="Share your thoughts, insights, or reflections..."
+                placeholder="Share your thoughts..."
+                aria-label="Share your thoughts"
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -544,11 +550,15 @@ function Sanctuary({
               gap: '0.75rem',
               flexWrap: 'wrap'
             }}>
-              <label style={{
+              <label
+              title="Add a photo"
+              aria-label="Add a photo"
+              style={{
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.25rem',
+                padding: '0.35rem',
+                borderRadius: '9999px',
                 color: `${theme.text}80`,
                 transition: 'color 0.3s ease'
               }}
@@ -556,7 +566,6 @@ function Sanctuary({
               onMouseLeave={(e) => e.currentTarget.style.color = `${theme.text}80`}
               >
                 <CameraIcon />
-                <span style={{ fontSize: '0.875rem' }}>Photo</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -565,11 +574,15 @@ function Sanctuary({
                 />
               </label>
 
-              <label style={{
+              <label
+              title="Add a video"
+              aria-label="Add a video"
+              style={{
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.25rem',
+                padding: '0.35rem',
+                borderRadius: '9999px',
                 color: `${theme.text}80`,
                 transition: 'color 0.3s ease'
               }}
@@ -577,7 +590,6 @@ function Sanctuary({
               onMouseLeave={(e) => e.currentTarget.style.color = `${theme.text}80`}
               >
                 <VideoIcon />
-                <span style={{ fontSize: '0.875rem' }}>Video</span>
                 <input
                   type="file"
                   accept="video/*"
@@ -586,12 +598,6 @@ function Sanctuary({
                 />
               </label>
 
-              <div style={{
-                fontSize: '0.75rem',
-                color: `${theme.text}60`
-              }}>
-                Max 100MB
-              </div>
             </div>
             
             <button
@@ -1113,6 +1119,7 @@ function Sanctuary({
           </button>
         </div>
       </div>
+    </PullToRefresh>
   )
 }
 

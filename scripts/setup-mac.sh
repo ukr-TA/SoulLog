@@ -118,13 +118,12 @@ fi
 python manage.py migrate --noinput >/dev/null
 ok "database migrated"
 
-# Demo data only once: a populated app is far easier to look at, but
-# re-seeding on every run would be surprising.
-if python manage.py shell -c "from users.models import User; import sys; sys.exit(0 if User.objects.filter(username='sarah.demo').exists() else 1)" 2>/dev/null; then
-  ok "demo data already present"
-else
+# No demo data by default: the app starts empty and fills with real
+# people. To try it with sample accounts, run once:
+#   python manage.py seed_demo      (and `clear_demo` to remove them)
+if [ "${1:-}" = "--demo" ]; then
   python manage.py seed_demo >/dev/null
-  ok "seeded demo data"
+  ok "seeded demo data (--demo)"
 fi
 deactivate
 
@@ -147,6 +146,5 @@ cat <<'MSG'
 
       ./scripts/dev.sh
 
-  Then open http://localhost:5173 and sign in with any demo account,
-  e.g.  sarah.demo  /  SoulLogDemo!2024
+  Then open http://localhost:5173 and create your account.
 MSG

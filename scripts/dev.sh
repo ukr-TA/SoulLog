@@ -51,7 +51,7 @@ trap cleanup INT TERM EXIT
 echo
 echo "  API  → http://localhost:8000/api/v1/"
 echo "  App  → http://localhost:5173"
-echo "  Demo login: sarah.demo / SoulLogDemo!2024   (Ctrl+C to stop)"
+echo "  Sign in or create an account.   (Ctrl+C to stop)"
 echo
 
 wait

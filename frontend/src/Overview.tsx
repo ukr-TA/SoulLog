@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, get, post } from './api';
 import type { Theme } from './theme';
+import PullToRefresh from './PullToRefresh';
 import type { JournalEntry, JournalStats, Paginated } from './types';
 
 interface OverviewProps {
@@ -278,7 +279,7 @@ function Overview( {theme, darkMode, isMobile, setActiveTab, onWriteWithPrompt}:
   }, [load]);
 
   return (
-    <>
+    <PullToRefresh theme={theme} onRefresh={() => Promise.all([load(), loadSummary()])}>
         {/* Main Content */}
         <main className="flex flex-col gap-[0.75rem] px-[0.75rem] py-[0.75rem]" style={{ maxWidth: '1400px', margin: '0 auto'}}>
           
@@ -1270,7 +1271,7 @@ function Overview( {theme, darkMode, isMobile, setActiveTab, onWriteWithPrompt}:
             </aside>
           </div>
         </main>
-    </>
+    </PullToRefresh>
   )
 }
 

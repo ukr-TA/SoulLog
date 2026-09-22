@@ -18,6 +18,7 @@ import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share, Bookmark, M
 import { ApiError, del, get, patch, post } from './api';
 import type { LibraryComment, Theme } from './types';
 import { Avatar, EditedMark, InlineEditor } from './ui';
+import PullToRefresh from './PullToRefresh';
 
 interface MessagePageProps {
   theme: Theme;
@@ -601,6 +602,7 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
   );
 
   return (
+    <PullToRefresh theme={theme} onRefresh={load}>
     <div 
       className="min-h-screen"
       style={{ background: theme.background }}
@@ -673,6 +675,7 @@ const VideoInterface = ({ theme, darkMode }: MessagePageProps) => {
         )}
       </div>
     </div>
+    </PullToRefresh>
   );
 };
 

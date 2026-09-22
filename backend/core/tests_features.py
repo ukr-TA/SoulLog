@@ -325,3 +325,39 @@ class NotificationTabCountsTests(APITestCase):
         Notification.objects.filter(recipient=user).update(is_read=True)
         counts = counts_for(user)
         self.assertEqual((counts["all"], counts["social"], counts["unread"]), (0, 0, 0))
+
+
+class FriendsCountAsFollowsTests(APITestCase):
+    """One friend is one follower and one following, and is never counted twice."""
+
+    def setUp(self):
+        self.a_token = register_and_login(self.client, "friend_a")
+        self.b_token = register_and_login(self.client, "friend_b")
+        self.a, self.b = _user("friend_a"), _user("friend_b")
+
+    def stats(self, token):
+        return self.client.get("/api/v1/profile/", **auth_header(token)).data["stats"]
+
+    def test_friend_counts_both_ways_once(self):
+        from social.models import Connection, Follow
+
+        Connection.objects.create(requester=self.a, addressee=self.b, status=Connection.ACCEPTED)
+        for token in (self.a_token, self.b_token):
+            stats = self.stats(token)
+            self.assertEqual((stats["followers"], stats["following"]), (1, 1))
+
+        # Also following each other the old way doesn't double it.
+        Follow.objects.create(follower=self.a, following=self.b)
+        self.assertEqual(self.stats(self.a_token)["following"], 1)
+        self.assertEqual(self.stats(self.b_token)["followers"], 1)
+
+        other = self.client.get("/api/v1/profile/friend_b/", **auth_header(self.a_token)).data
+        self.assertTrue(other["is_following"])
+
+    def test_removing_the_friend_removes_the_counts(self):
+        from social.models import Connection
+
+        Connection.objects.create(requester=self.a, addressee=self.b, status=Connection.ACCEPTED)
+        Connection.objects.all().delete()
+        stats = self.stats(self.a_token)
+        self.assertEqual((stats["followers"], stats["following"]), (0, 0))

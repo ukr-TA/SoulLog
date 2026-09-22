@@ -101,6 +101,8 @@ def mark_read(conversation, user):
     ConversationParticipant.objects.filter(conversation=conversation, user=user).update(
         last_read_at=timezone.now()
     )
+    # The reader's other screens (the Whispers badge) drop the count now.
+    transaction.on_commit(lambda: _nudge_unread([user.id]))
 
 
 def broadcast(conversation_id, event_type, payload):

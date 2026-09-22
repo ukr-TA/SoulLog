@@ -116,6 +116,15 @@ class ConversationConsumer(AsyncWebsocketConsumer):
 
     async def conversation_event(self, event):
         payload = event["payload"]
+        # "read" tells the *other* person their messages were seen. Sent
+        # back to the reader too, it wrongly ticked the reader's own
+        # messages as read.
+        if (
+            event["event"] == "read"
+            and isinstance(payload, dict)
+            and payload.get("userId") == self.scope["user"].id
+        ):
+            return
         # A message is serialised once, from the sender's point of view, and
         # sent to everyone in the conversation. Re-label "me"/"them" for the
         # person this socket belongs to — otherwise the receiver saw the

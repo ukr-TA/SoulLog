@@ -60,13 +60,16 @@ def _profile_stats(user, viewer):
             posts = posts.filter(visibility=SanctuaryPost.PUBLIC)
 
     from achievements.services import best_streak, reactions_received
+    from social.relations import follower_count, following_count
 
     stats = {
         "entries": entries.count(),
         "posts": posts.count(),
         "connections": len(connected_user_ids(user)),
-        "followers": user.followers.count(),
-        "following": user.following.count(),
+        # Friends count on both sides: one friend is one follower and one
+        # following (social.relations.follower_count).
+        "followers": follower_count(user),
+        "following": following_count(user),
         # Reactions other people gave to this person's work. Public,
         # because every one of them is already visible on the thing it
         # was given to — this is just the sum.

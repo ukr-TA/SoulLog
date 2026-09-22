@@ -589,14 +589,19 @@ const SoulLogOthersProfile = ({ theme: themeProp, darkMode: darkModeProp, userna
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
-                    <Button 
-                      variant="primary" 
-                      onClick={handleFollowToggle}
-                      className={isFollowing ? 'bg-opacity-80' : ''}
-                    >
-                      <Users className="w-4 h-4 mr-2" />
-                      {isFollowing ? 'Following ✓' : 'Follow'}
-                    </Button>
+                    {/* Friends already follow each other (they count in each
+                        other's followers and following), so there's
+                        nothing separate to follow or unfollow. */}
+                    {userData.relationship.state !== 'accepted' && (
+                      <Button
+                        variant="primary"
+                        onClick={handleFollowToggle}
+                        className={isFollowing ? 'bg-opacity-80' : ''}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        {isFollowing ? 'Following ✓' : 'Follow'}
+                      </Button>
+                    )}
                     {userData.relationship.state === 'none' && (
                       <Button variant="outline" onClick={handleConnect}>Connect</Button>
                     )}

@@ -317,6 +317,36 @@ class WebSocketTests(TransactionTestCase):
 
         async_to_sync(scenario)()
 
+    def test_reading_over_the_socket_marks_read_and_tells_only_the_sender(self):
+        async def scenario():
+            from channels.db import database_sync_to_async
+
+            from .services import send_message
+
+            sender = self._communicator(self.a)
+            await sender.connect()
+            await sender.receive_json_from()
+            reader = self._communicator(self.b)
+            await reader.connect()
+            await reader.receive_json_from()
+
+            await database_sync_to_async(send_message)(self.conversation, self.a, "you there?")
+            for socket in (sender, reader):
+                self.assertEqual((await socket.receive_json_from(timeout=5))["type"], "message")
+
+            # The reader has the chat open: the app reads it at once.
+            await reader.send_json_to({"type": "read"})
+            self.assertEqual((await sender.receive_json_from(timeout=5))["type"], "read")
+            # ...and the reader doesn't get its own "read" back.
+            self.assertTrue(await reader.receive_nothing(timeout=0.5))
+
+            await sender.disconnect()
+            await reader.disconnect()
+
+        async_to_sync(scenario)()
+        self.assertEqual(unread_count_for(self.conversation, self.b), 0)
+        self.assertEqual(total_unread(self.b), 0)
+
     def test_typing_is_relayed_and_never_stored(self):
         async def scenario():
             listener = self._communicator(self.b)

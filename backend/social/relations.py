@@ -67,6 +67,20 @@ def follower_ids(user):
     return set(Follow.objects.filter(following=user).values_list("follower_id", flat=True))
 
 
+def follower_count(user):
+    """
+    Followers as the profile shows them. A friend counts as a follower (and
+    as someone you follow) — being friends means you follow each other.
+    Someone who is both is counted once.
+    """
+    return len(follower_ids(user) | connected_user_ids(user))
+
+
+def following_count(user):
+    """Everyone `user` follows, friends included (see `follower_count`)."""
+    return len(following_ids(user) | connected_user_ids(user))
+
+
 def can_message(sender, recipient):
     """
     Whether `sender` is allowed to open or continue a conversation with

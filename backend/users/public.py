@@ -117,7 +117,10 @@ class PublicUserSerializer(serializers.Serializer):
             connection = connection_between(viewer, user)
             data["mutual_connections"] = mutual_connection_count(viewer, user)
             data["relationship"] = self._relationship_shape(connection, viewer)
-            data["is_following"] = user.id in following_ids(viewer)
+            # Friends follow each other, so a friend always reads as followed.
+            data["is_following"] = user.id in following_ids(viewer) or (
+                connection is not None and connection.status == "accepted"
+            )
         elif viewer is not None and getattr(viewer, "id", None) == user.id:
             data["relationship"] = {"state": "self", "direction": None, "connection_id": None}
 

@@ -108,6 +108,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<LiveSocket | null>(null);
+  const openChatRef = useRef<number | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastTypingSentRef = useRef<number>(0);
 
@@ -141,7 +142,13 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   const loadConversations = useCallback(async () => {
     try {
       const data = await get<{ conversations: Conversation[] }>('/messages/conversations/');
-      setConversations(data.conversations);
+      // The chat you have open is being read as it arrives, so its row
+      // never shows a count — even if this list was fetched a moment
+      // before the server recorded the read.
+      const open = openChatRef.current;
+      setConversations(
+        data.conversations.map((row) => (row.id === open ? { ...row, unread: 0 } : row)),
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load your conversations.');
     }
@@ -196,6 +203,27 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
     );
   };
 
+  // Which chat is open, for the list refresh above.
+  useEffect(() => {
+    openChatRef.current = selectedFriend;
+  }, [selectedFriend]);
+
+  // Coming back to the app with a chat open: whatever arrived meanwhile
+  // is now in front of you, so it's read.
+  useEffect(() => {
+    if (!selectedFriend) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        socketRef.current?.send({ type: 'read' });
+        setConversations((current) =>
+          current.map((row) => (row.id === selectedFriend ? { ...row, unread: 0 } : row)),
+        );
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [selectedFriend]);
+
   useEffect(() => {
     if (!selectedFriend) {
       setMessages([]);
@@ -215,6 +243,13 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
 
         if (event.type === 'message') {
           const incoming = frame as unknown as ChatMessage;
+          // A message arriving in the chat you're looking at is seen:
+          // mark it read straight away (the sender gets their "read" tick
+          // and no unread number appears anywhere). If the app is in the
+          // background it waits until you come back — see below.
+          if (incoming.sender === 'them' && document.visibilityState === 'visible') {
+            socketRef.current?.send({ type: 'read' });
+          }
           setMessages((current) =>
             // The sender gets the message back over the socket as well as
             // in the POST response; drop the duplicate rather than

@@ -481,3 +481,54 @@ class MessagesAndNotificationsTests(APITestCase):
         send_message(self.conversation, self.a, "hello")
         self.assertEqual(total_unread(self.b), 0)
         self.assertEqual(unread_count_for(self.conversation, self.b), 1)
+
+
+class ChatListActionsTests(APITestCase):
+    """Pin, archive and delete-for-me, as the Whispers list uses them."""
+
+    def setUp(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        self.a = User.objects.create_user(username="pina", email="pina@example.com", password="SuperSecure123")
+        self.b = User.objects.create_user(username="pinb", email="pinb@example.com", password="SuperSecure123")
+        self.c = User.objects.create_user(username="pinc", email="pinc@example.com", password="SuperSecure123")
+        self.token = str(RefreshToken.for_user(self.a).access_token)
+        self.ab, _ = get_or_create_direct(self.a, self.b)
+        self.ac, _ = get_or_create_direct(self.a, self.c)
+        from .services import send_message
+
+        send_message(self.ab, self.b, "older")
+        send_message(self.ac, self.c, "newer")
+
+    def rows(self):
+        return self.client.get("/api/v1/messages/conversations/", **auth(self.token)).data["conversations"]
+
+    def test_pinned_chat_comes_first(self):
+        self.assertEqual(self.rows()[0]["id"], self.ac.id)
+        self.client.post(f"/api/v1/messages/conversations/{self.ab.id}/pin/", {"pinned": True}, format="json", **auth(self.token))
+        rows = self.rows()
+        self.assertEqual(rows[0]["id"], self.ab.id)
+        self.assertTrue(rows[0]["pinned"])
+
+    def test_archived_chat_is_flagged_and_leaves_the_badge(self):
+        self.assertEqual(total_unread(self.a), 2)
+        self.client.post(f"/api/v1/messages/conversations/{self.ab.id}/archive/", {"archived": True}, format="json", **auth(self.token))
+        row = next(r for r in self.rows() if r["id"] == self.ab.id)
+        self.assertTrue(row["archived"])
+        self.assertEqual(total_unread(self.a), 1)
+
+    def test_deleted_chat_hides_until_someone_writes_again(self):
+        from .services import send_message
+
+        self.client.delete(f"/api/v1/messages/conversations/{self.ab.id}/", **auth(self.token))
+        self.assertNotIn(self.ab.id, [r["id"] for r in self.rows()])
+
+        send_message(self.ab, self.b, "hello again")
+        row = next(r for r in self.rows() if r["id"] == self.ab.id)
+        self.assertEqual(row["lastMessage"], "hello again")
+        thread = self.client.get(f"/api/v1/messages/conversations/{self.ab.id}/", **auth(self.token)).data["messages"]
+        self.assertEqual([m["text"] for m in thread], ["hello again"])
+        # The other person still has the whole history.
+        from .serializers import serialize_thread
+
+        self.assertEqual(len(serialize_thread(self.ab, self.b)), 2)

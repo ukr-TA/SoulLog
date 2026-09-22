@@ -36,7 +36,10 @@ from .services import (
     broadcast,
     get_or_create_direct,
     is_participant,
+    clear_for,
+    is_hidden_for,
     mark_read,
+    membership_of,
     participants_of,
     send_message,
     total_unread,
@@ -79,8 +82,16 @@ class ConversationListView(APIView):
             .order_by("-last_message_at", "-created_at")
         )
 
+        # Chats you deleted stay out of the list until someone writes again.
+        conversations = [
+            c for c in conversations
+            if not is_hidden_for(c, membership_of(c, request.user))
+        ]
+
         query = (request.query_params.get("q") or "").strip().lower()
         payload = serialize_conversations(conversations, request.user, request)
+        # Pinned first (most recently pinned on top), then newest activity.
+        payload.sort(key=lambda c: c["pinnedAt"] or "", reverse=True)
         if query:
             payload = [c for c in payload if query in (c["name"] or "").lower()]
 
@@ -130,15 +141,11 @@ class ConversationDetailView(APIView):
         })
 
     def delete(self, request, pk):
-        """Leave a conversation. The thread and its history survive for the
-        other participant."""
+        """"Delete chat" — for you only. The other person keeps their copy,
+        and if either of you writes again it comes back with just that."""
         conversation = _require_participant(get_object_or_404(Conversation, pk=pk), request.user)
-        from django.utils import timezone
-
-        ConversationParticipant.objects.filter(
-            conversation=conversation, user=request.user
-        ).update(left_at=timezone.now())
-        return Response({"detail": "You've left this conversation."})
+        clear_for(conversation, request.user)
+        return Response({"detail": "Chat deleted."})
 
 
 class MessageCreateView(APIView):
@@ -269,6 +276,39 @@ class ConversationMuteView(APIView):
             conversation=conversation, user=request.user
         ).update(is_muted=muted)
         return Response({"muted": muted})
+
+
+class ConversationPinView(APIView):
+    """POST /api/v1/messages/conversations/<pk>/pin/ — { pinned: bool }"""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.utils import timezone
+
+        conversation = _require_participant(get_object_or_404(Conversation, pk=pk), request.user)
+        pinned = bool(request.data.get("pinned", True))
+        ConversationParticipant.objects.filter(conversation=conversation, user=request.user).update(
+            pinned_at=timezone.now() if pinned else None
+        )
+        return Response({"pinned": pinned})
+
+
+class ConversationArchiveView(APIView):
+    """POST /api/v1/messages/conversations/<pk>/archive/ — { archived: bool }"""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        conversation = _require_participant(get_object_or_404(Conversation, pk=pk), request.user)
+        archived = bool(request.data.get("archived", True))
+        ConversationParticipant.objects.filter(conversation=conversation, user=request.user).update(
+            is_archived=archived
+        )
+        from .services import _nudge_unread
+
+        _nudge_unread([request.user.id])
+        return Response({"archived": archived})
 
 
 class UnreadTotalView(APIView):

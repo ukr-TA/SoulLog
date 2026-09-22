@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    ConversationArchiveView,
+    ConversationPinView,
     ConversationDetailView,
     ConversationListView,
     ConversationMuteView,
@@ -22,6 +24,8 @@ urlpatterns = [
     ),
     path("conversations/<int:pk>/read/", ConversationReadView.as_view(), name="conversation-read"),
     path("conversations/<int:pk>/mute/", ConversationMuteView.as_view(), name="conversation-mute"),
+    path("conversations/<int:pk>/pin/", ConversationPinView.as_view(), name="conversation-pin"),
+    path("conversations/<int:pk>/archive/", ConversationArchiveView.as_view(), name="conversation-archive"),
     path("recipients/", MessageableUsersView.as_view(), name="message-recipients"),
     path("unread/", UnreadTotalView.as_view(), name="message-unread"),
 ]

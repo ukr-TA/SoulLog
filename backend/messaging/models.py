@@ -76,6 +76,16 @@ class ConversationParticipant(models.Model):
     # have a valid author context) but stops receiving anything.
     left_at = models.DateTimeField(null=True, blank=True)
 
+    # Per-person list housekeeping, like any chat app:
+    #  - pinned_at: pinned to the top of *your* list (newest pin first)
+    #  - is_archived: moved out of your main list into Archived
+    #  - cleared_at: "Delete chat" — everything up to this moment is gone
+    #    for you (the other person keeps their copy); the chat leaves your
+    #    list until someone writes in it again.
+    pinned_at = models.DateTimeField(null=True, blank=True)
+    is_archived = models.BooleanField(default=False)
+    cleared_at = models.DateTimeField(null=True, blank=True)
+
     joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

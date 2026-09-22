@@ -25,10 +25,11 @@
  */
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Send, Paperclip, Smile, Phone, Video, MoreVertical, ArrowLeft, Search, Info, Settings } from 'lucide-react';
+import { Send, Paperclip, Smile, Phone, Video, MoreVertical, ArrowLeft, Info } from 'lucide-react';
 import { ApiError, del, get, openSocket, patch, post, upload, type LiveSocket } from './api';
 import { EditedMark, InlineEditor } from './ui';
 import { Avatar } from './ui';
+import ChatList from './ChatList';
 import type { Theme } from './theme';
 
 interface MessagePageProps {
@@ -60,6 +61,8 @@ type Conversation = {
   unread: number;
   typing: boolean;
   muted?: boolean;
+  pinned?: boolean;
+  archived?: boolean;
 };
 
 type ChatMessage = {
@@ -95,7 +98,6 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
   const [selectedFriend, setSelectedFriend] = useState<number | null>(initialConversationId);
   const [message, setMessage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -440,7 +442,7 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
           style={{ color: theme.error, background: 'transparent' }}
           onClick={leaveConversation}
         >
-          {confirmLeave ? 'Tap again to leave — they keep the history' : 'Leave conversation'}
+          {confirmLeave ? 'Tap again to delete — they keep their copy' : 'Delete chat'}
         </button>
       </div>
     ) : null;
@@ -518,9 +520,6 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
     if (hideExtra) setHideExtra?.(true);
   };
 
-  const filteredFriends = conversations.filter((row) =>
-    row.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
 
   /** The line under a name in the thread header. */
   const presenceLine = (friend: Conversation) => {
@@ -739,88 +738,22 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
     }
 
     return (
-      <div
-        style={{ background: theme.gradient }}
-      >
-        <div
-          className="px-4 py-2 border-b"
-          style={{
-            backgroundColor: theme.surface,
-            borderColor: theme.border
+      <div style={{ minHeight: '100dvh', backgroundColor: theme.surface }}>
+        <ChatList
+          theme={theme}
+          rows={conversations}
+          selectedId={selectedFriend}
+          typingInSelected={Boolean(typingName)}
+          compact={false}
+          onOpen={(id) => openConversation(id, true)}
+          onChanged={(id, change) => setConversations((rows) => rows.map((row) => (row.id === id ? { ...row, ...change } : row)))}
+          onRemoved={(id) => {
+            setConversations((rows) => rows.filter((row) => row.id !== id));
+            if (selectedFriend === id) setSelectedFriend(null);
           }}
-        >
-          {/* One pill with the icon inside it, and the text sitting in
-              its vertical middle (it used to be pushed down by top-only
-              padding, so it sat low next to the icon). */}
-          <div
-            className="flex gap-2 items-center px-4 rounded-full"
-            style={{ backgroundColor: theme.chatBg, height: '2.5rem' }}
-          >
-            <Search size={18} className="flex-shrink-0" style={{ color: theme.text, opacity: 0.5 }} />
-            <input
-              type="text"
-              placeholder="Search souls..."
-              aria-label="Search souls"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 min-w-0 h-full bg-transparent outline-none text-base leading-none"
-              style={{ color: theme.text, padding: 0, margin: 0 }}
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {filteredFriends.length === 0 && (
-            <div className="text-center py-16 px-6">
-              <div className="text-5xl mb-3">💬</div>
-              <p style={{ color: theme.text, opacity: 0.7 }}>
-                No conversations yet. Start one from a connection's profile.
-              </p>
-            </div>
-          )}
-          {filteredFriends.map((friend) => (
-            <div
-              key={friend.id}
-              onClick={() => openConversation(friend.id, true)}
-              className="flex items-center gap-3 p-4 border-b cursor-pointer hover:bg-opacity-50"
-              style={{
-                borderColor: theme.border,
-                backgroundColor: 'transparent'
-              }}
-            >
-              <div className="relative">
-                <Avatar user={friend} theme={theme} size={40} />
-                {friend.online && (
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2"
-                       style={{ borderColor: theme.surface }} />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium truncate" style={{ color: theme.text }}>
-                    {friend.name}
-                  </h3>
-                  <span className="text-xs" style={{ color: theme.text, opacity: 0.6 }}>
-                    {friend.time}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm truncate" style={{ color: theme.text, opacity: 0.7 }}>
-                    {friend.lastMessage}
-                  </p>
-                  {friend.unread > 0 && (
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                      style={{ backgroundColor: theme.secondary }}
-                    >
-                      {friend.unread}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+          onOpenSettings={onOpenSettings}
+          onError={setError}
+        />
       </div>
     );
   }
@@ -831,111 +764,35 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
       className="h-dvh flex"
       style={{ background: theme.gradient }}
     >
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+        accept="image/*,video/*,audio/*"
+      />
       <div
-        className="w-1/4 border-r flex flex-col"
-        style={{
-          backgroundColor: theme.surface,
-          borderColor: theme.border
-        }}
+        className="border-r flex flex-col min-h-0"
+        style={{ width: 'clamp(16rem, 28%, 22rem)', flexShrink: 0, borderColor: theme.border }}
       >
-        <div
-          className="p-3 border-b space-y-2"
-          style={{ borderColor: theme.border }}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-md font-bold" style={{ color: theme.text }}>
-              Whispers
-            </h3>
-            <button
-              aria-label="Message settings"
-              title="Who can message you, and message notifications"
-              onClick={() => onOpenSettings?.()}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-            >
-              <Settings size={16} style={{ color: theme.text }} />
-            </button>
-          </div>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2"
-                   style={{ color: theme.text, opacity: 0.5 }} />
-            <input
-              type="text"
-              placeholder="Search friends..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 rounded-lg border outline-none text-xs"
-              style={{
-                backgroundColor: theme.chatBg,
-                borderColor: theme.border,
-                color: theme.text
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-            accept="image/*,video/*,audio/*"
-          />
-          {filteredFriends.length === 0 && (
-            <p className="p-4 text-xs" style={{ color: theme.text, opacity: 0.6 }}>
-              No conversations yet.
-            </p>
-          )}
-          {filteredFriends.map((friend) => (
-            <div
-              key={friend.id}
-              onClick={() => openConversation(friend.id, false)}
-              className={`flex items-center gap-3 p-4 cursor-pointer border-b hover:bg-opacity-50 ${
-                selectedFriend === friend.id ? 'bg-opacity-20' : ''
-              }`}
-              style={{
-                borderColor: theme.border,
-                backgroundColor: selectedFriend === friend.id ? `${theme.accent}80` : 'transparent'
-              }}
-            >
-              <div className="relative">
-                <Avatar user={friend} theme={theme} size={32} />
-                {friend.online && (
-                  <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2"
-                       style={{ borderColor: theme.surface }} />
-                )}
-              </div>
-              <div className="flex-1 flex flex-col gap-2 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-sm truncate" style={{ color: theme.text }}>
-                    {friend.name}
-                  </h3>
-                  <span className="text-xs" style={{ color: theme.text, opacity: 0.6 }}>
-                    {friend.time}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs truncate" style={{ color: theme.text, opacity: 0.7 }}>
-                    {selectedFriend === friend.id && typingName
-                      ? '✍️ Typing...'
-                      : friend.lastMessage}
-                  </p>
-                  {friend.unread > 0 && (
-                    <div
-                      className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white"
-                      style={{ backgroundColor: theme.secondary, fontSize: '10px' }}
-                    >
-                      {friend.unread}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ChatList
+          theme={theme}
+          rows={conversations}
+          selectedId={selectedFriend}
+          typingInSelected={Boolean(typingName)}
+          compact={true}
+          onOpen={(id) => openConversation(id, false)}
+          onChanged={(id, change) => setConversations((rows) => rows.map((row) => (row.id === id ? { ...row, ...change } : row)))}
+          onRemoved={(id) => {
+            setConversations((rows) => rows.filter((row) => row.id !== id));
+            if (selectedFriend === id) setSelectedFriend(null);
+          }}
+          onOpenSettings={onOpenSettings}
+          onError={setError}
+        />
       </div>
 
-      <div className="w-3/4 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         {selectedFriend && currentFriend ? (
           <>
             <div

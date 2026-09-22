@@ -23,7 +23,7 @@ from users.presence import humanize_presence, presence_for
 from users.public import avatar_url, initials_for
 
 from .models import Message
-from .services import unread_count_for
+from .services import membership_of, unread_count_for
 
 
 def _short_time(moment):
@@ -91,8 +91,13 @@ def serialize_thread(conversation, viewer, request=None, limit=100):
         (p.last_read_at for p in others if p.last_read_at is not None), default=None
     )
 
+    own = conversation.participants.filter(user=viewer).first()
+    visible = conversation.messages.all()
+    if own is not None and own.cleared_at is not None:
+        visible = visible.filter(created_at__gt=own.cleared_at)
+
     messages = list(
-        conversation.messages.select_related("sender")
+        visible.select_related("sender")
         .prefetch_related("attachments")
         .order_by("-created_at")[:limit]
     )
@@ -112,8 +117,12 @@ def serialize_thread(conversation, viewer, request=None, limit=100):
 
 def serialize_conversation(conversation, viewer, request=None):
     other = conversation.other_participant(viewer) if conversation.is_direct else None
+    own = membership_of(conversation, viewer)
+    shown = conversation.messages.filter(is_deleted=False)
+    if own is not None and own.cleared_at is not None:
+        shown = shown.filter(created_at__gt=own.cleared_at)
     last = (
-        conversation.messages.filter(is_deleted=False)
+        shown
         .select_related("sender")
         .order_by("-created_at")
         .first()
@@ -158,10 +167,10 @@ def serialize_conversation(conversation, viewer, request=None):
         # Whether *you* muted this thread — drives Mute/Unmute in the
         # conversation menu. Read from the prefetched participants, so the
         # list doesn't cost a query per row.
-        "muted": next(
-            (row.is_muted for row in conversation.participants.all() if row.user_id == viewer.id),
-            False,
-        ),
+        "muted": bool(own and own.is_muted),
+        "pinned": bool(own and own.pinned_at),
+        "pinnedAt": own.pinned_at.isoformat() if own and own.pinned_at else None,
+        "archived": bool(own and own.is_archived),
     })
     return data
 

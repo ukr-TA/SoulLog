@@ -94,7 +94,7 @@ const readText = (value: unknown): string | null =>
 const POLL_INTERVAL_MS = 20000;
 const TYPING_TIMEOUT_MS = 4000;
 
-const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewProfile, onOpenSettings }: MessagePageProps) => {
+const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewProfile }: MessagePageProps) => {
   const [selectedFriend, setSelectedFriend] = useState<number | null>(initialConversationId);
   const [message, setMessage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
@@ -751,7 +751,6 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             setConversations((rows) => rows.filter((row) => row.id !== id));
             if (selectedFriend === id) setSelectedFriend(null);
           }}
-          onOpenSettings={onOpenSettings}
           onError={setError}
         />
       </div>
@@ -787,7 +786,6 @@ const ChatPage = ({ theme, setHideExtra, initialConversationId = null, onViewPro
             setConversations((rows) => rows.filter((row) => row.id !== id));
             if (selectedFriend === id) setSelectedFriend(null);
           }}
-          onOpenSettings={onOpenSettings}
           onError={setError}
         />
       </div>

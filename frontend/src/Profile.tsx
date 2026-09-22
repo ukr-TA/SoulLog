@@ -235,8 +235,6 @@ const SoulLogOwnProfile = ({
   const [notice, setNotice] = useState<string | null>(null);
 
   // About Me and Interests edit in place.
-  const [editingAbout, setEditingAbout] = useState(false);
-  const [aboutDraft, setAboutDraft] = useState('');
   const [editingInterests, setEditingInterests] = useState(false);
   const [interestsDraft, setInterestsDraft] = useState('');
   const [savingField, setSavingField] = useState(false);
@@ -365,15 +363,8 @@ const SoulLogOwnProfile = ({
     }
   };
 
-  const saveAbout = async () => {
-    if (await saveProfileFields({ bio: aboutDraft.trim() })) {
-      setEditingAbout(false);
-      flash('About Me updated.');
-    }
-  };
-
   /** Current Focus, Growth Areas, Core Values — one field at a time. */
-  const saveAboutField = async (field: 'current_focus' | 'growth_areas' | 'values', value: string, label: string) => {
+  const saveAboutField = async (field: 'bio' | 'current_focus' | 'growth_areas' | 'values', value: string, label: string) => {
     const ok = await saveProfileFields({ [field]: value.trim() });
     if (ok) flash(value.trim() ? `${label} updated.` : `${label} cleared.`);
     return ok;
@@ -640,40 +631,22 @@ const SoulLogOwnProfile = ({
                   <Target className="w-6 h-6" style={{ color: theme.accent }} />
                   About Me
                 </p>
-                {!editingAbout && (
-                  <Button theme={theme} variant="ghost" size="sm" onClick={() => { setAboutDraft(userData.about); setEditingAbout(true); }}>
-                    <Edit3 className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              
-              <div className="relative p-6 rounded-xl" style={{ backgroundColor: `${theme.accent}10`, border: `1px solid ${theme.accent}20` }}>
-                {editingAbout ? (
-                  <div className="flex flex-col gap-3">
-                    <textarea
-                      autoFocus
-                      value={aboutDraft}
-                      onChange={(e) => setAboutDraft(e.target.value)}
-                      rows={4}
-                      maxLength={2000}
-                      placeholder="A few lines about you and what you're working on."
-                      className="w-full p-3 rounded-lg border resize-none text-sm"
-                      style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
-                    />
-                    <div className="flex gap-2 justify-end">
-                      <Button theme={theme} variant="outline" size="sm" onClick={() => setEditingAbout(false)}>Cancel</Button>
-                      <Button theme={theme} variant="primary" size="sm" onClick={saveAbout}>{savingField ? 'Saving…' : 'Save'}</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="leading-relaxed text-md">
-                    {userData.about || <span className="opacity-60">Nothing here yet — tap the pencil to add a few lines about you.</span>}
-                  </p>
-                )}
               </div>
 
               {/* Each one edits in place: tap it, type, Enter (or Save). */}
               <div className="flex flex-col" style={{ gap: '0.75rem' }}>
+                <AboutItem
+                  theme={theme}
+                  color={theme.secondary}
+                  icon={<BookOpen className="w-4 h-4" />}
+                  label="Bio"
+                  value={userData.about}
+                  prompt="A few lines about you and what you're working on."
+                  example="A few lines about you"
+                  multiline
+                  max={2000}
+                  onSave={(value) => saveAboutField('bio', value, 'Bio')}
+                />
                 <AboutItem
                   theme={theme}
                   color={theme.accent}
@@ -1135,8 +1108,10 @@ const SoulLogOwnProfile = ({
 const ABOUT_MAX = 200;
 
 const AboutItem = ({
-  theme, color, icon, label, value, prompt, example, onSave,
+  theme, color, icon, label, value, prompt, example, onSave, multiline = false, max = ABOUT_MAX,
 }: {
+  multiline?: boolean;
+  max?: number;
   theme: Theme;
   color: string;
   icon: React.ReactNode;
@@ -1177,22 +1152,41 @@ const AboutItem = ({
           {icon}
           <span style={{ color: theme.text }}>{label}</span>
         </p>
+{multiline ? (
+          <textarea
+            autoFocus
+            value={draft}
+            maxLength={max}
+            rows={4}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter makes a new line here; Ctrl/Cmd+Enter saves.
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            placeholder={example}
+            aria-label={label}
+            className="w-full p-2.5 rounded-lg border text-sm outline-none resize-none"
+            style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+          />
+        ) : (
         <input
-          autoFocus
-          value={draft}
-          maxLength={ABOUT_MAX}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); save(); }
-            if (e.key === 'Escape') setEditing(false);
-          }}
-          placeholder={example}
-          aria-label={label}
-          className="w-full p-2.5 rounded-lg border text-sm outline-none"
-          style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
-        />
+            autoFocus
+            value={draft}
+            maxLength={max}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); save(); }
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            placeholder={example}
+            aria-label={label}
+            className="w-full p-2.5 rounded-lg border text-sm outline-none"
+            style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+          />
+        )}
         <div className="flex items-center justify-between gap-2 mt-2">
-          <span className="text-xs opacity-50">{draft.length}/{ABOUT_MAX}</span>
+          <span className="text-xs opacity-50">{draft.length}/{max}</span>
           <div className="flex gap-2">
             <Button theme={theme} variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
             <Button theme={theme} variant="primary" size="sm" onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>
@@ -1214,7 +1208,7 @@ const AboutItem = ({
       <span className="min-w-0 flex-1">
         <span className="block font-medium text-xs mb-0.5">{label}</span>
         {value ? (
-          <span className="block text-sm opacity-85 break-words">{value}</span>
+          <span className="block text-sm opacity-85 break-words whitespace-pre-line">{value}</span>
         ) : (
           <span className="block text-xs opacity-55 italic">{prompt} Tap to add.</span>
         )}

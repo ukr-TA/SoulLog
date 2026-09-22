@@ -372,6 +372,13 @@ const SoulLogOwnProfile = ({
     }
   };
 
+  /** Current Focus, Growth Areas, Core Values — one field at a time. */
+  const saveAboutField = async (field: 'current_focus' | 'growth_areas' | 'values', value: string, label: string) => {
+    const ok = await saveProfileFields({ [field]: value.trim() });
+    if (ok) flash(value.trim() ? `${label} updated.` : `${label} cleared.`);
+    return ok;
+  };
+
   const saveInterests = async () => {
     const interests = interestsDraft.split(',').map((tag) => tag.trim()).filter(Boolean);
     if (await saveProfileFields({ interests })) {
@@ -665,28 +672,38 @@ const SoulLogOwnProfile = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 !gap-5">
-                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${theme.accent}15`, border: `1px solid ${theme.accent}30` }}>
-                  <Target className="w-4 h-4 flex-shrink-0" style={{ color: theme.accent }} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-xs mb-0.5">Current Focus</p>
-                    <p className="text-xs opacity-75 truncate">{userData.currentFocus}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${theme.secondary}15`, border: `1px solid ${theme.secondary}30` }}>
-                  <TrendingUp className="w-4 h-4 flex-shrink-0" style={{ color: theme.secondary }} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-xs mb-0.5">Growth Areas</p>
-                    <p className="text-xs opacity-75 truncate">{userData.growthAreas}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${theme.accent}15`, border: `1px solid ${theme.accent}30` }}>
-                  <Heart className="w-4 h-4 flex-shrink-0" style={{ color: theme.accent }} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-xs mb-0.5">Core Values</p>
-                    <p className="text-xs opacity-75 truncate">{userData.values}</p>
-                  </div>
-                </div>
+              {/* Each one edits in place: tap it, type, Enter (or Save). */}
+              <div className="flex flex-col" style={{ gap: '0.75rem' }}>
+                <AboutItem
+                  theme={theme}
+                  color={theme.accent}
+                  icon={<Target className="w-4 h-4" />}
+                  label="Current Focus"
+                  value={userData.currentFocus}
+                  prompt="What are you working on in yourself right now?"
+                  example="e.g. Sleeping before midnight"
+                  onSave={(value) => saveAboutField('current_focus', value, 'Current focus')}
+                />
+                <AboutItem
+                  theme={theme}
+                  color={theme.secondary}
+                  icon={<TrendingUp className="w-4 h-4" />}
+                  label="Growth Areas"
+                  value={userData.growthAreas}
+                  prompt="Where would you like to grow?"
+                  example="e.g. Patience, public speaking"
+                  onSave={(value) => saveAboutField('growth_areas', value, 'Growth areas')}
+                />
+                <AboutItem
+                  theme={theme}
+                  color={theme.accent}
+                  icon={<Heart className="w-4 h-4" />}
+                  label="Core Values"
+                  value={userData.values}
+                  prompt="What matters most to you?"
+                  example="e.g. Honesty, family, curiosity"
+                  onSave={(value) => saveAboutField('values', value, 'Core values')}
+                />
               </div>
             </ProfileCard>
 
@@ -1103,6 +1120,107 @@ const SoulLogOwnProfile = ({
         </div>
       )}
     </div>
+  );
+};
+
+
+/**
+ * One line of About Me (Current Focus, Growth Areas, Core Values).
+ *
+ * These used to be labels with nothing you could do to them. Now the card
+ * is the button: tap it to edit in place, Enter or Save to keep, Escape or
+ * Cancel to leave it. An empty one asks its question instead of showing a
+ * blank line.
+ */
+const ABOUT_MAX = 200;
+
+const AboutItem = ({
+  theme, color, icon, label, value, prompt, example, onSave,
+}: {
+  theme: Theme;
+  color: string;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  prompt: string;
+  example: string;
+  onSave: (value: string) => Promise<boolean>;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  const start = () => {
+    setDraft(value);
+    setEditing(true);
+  };
+  const save = async () => {
+    if (draft.trim() === value.trim()) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const ok = await onSave(draft);
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
+
+  const box = {
+    backgroundColor: `${color}15`,
+    border: `1px solid ${editing ? color : `${color}30`}`,
+  };
+
+  if (editing) {
+    return (
+      <div className="p-3 rounded-lg text-left" style={box}>
+        <p className="font-medium text-xs mb-2 flex items-center gap-2" style={{ color }}>
+          {icon}
+          <span style={{ color: theme.text }}>{label}</span>
+        </p>
+        <input
+          autoFocus
+          value={draft}
+          maxLength={ABOUT_MAX}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); save(); }
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          placeholder={example}
+          aria-label={label}
+          className="w-full p-2.5 rounded-lg border text-sm outline-none"
+          style={{ backgroundColor: theme.background, borderColor: theme.border, color: theme.text }}
+        />
+        <div className="flex items-center justify-between gap-2 mt-2">
+          <span className="text-xs opacity-50">{draft.length}/{ABOUT_MAX}</span>
+          <div className="flex gap-2">
+            <Button theme={theme} variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button theme={theme} variant="primary" size="sm" onClick={save}>{saving ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={start}
+      className="group w-full flex items-center gap-3 rounded-lg text-left transition-all hover:-translate-y-0.5"
+      style={{ ...box, color: theme.text, padding: '0.75rem' }}
+      aria-label={`Edit ${label}`}
+    >
+      <span className="flex-shrink-0 flex" style={{ color }}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-xs mb-0.5">{label}</span>
+        {value ? (
+          <span className="block text-sm opacity-85 break-words">{value}</span>
+        ) : (
+          <span className="block text-xs opacity-55 italic">{prompt} Tap to add.</span>
+        )}
+      </span>
+      <Edit3 className="w-3.5 h-3.5 flex-shrink-0 opacity-40 group-hover:opacity-90 transition-opacity" />
+    </button>
   );
 };
 

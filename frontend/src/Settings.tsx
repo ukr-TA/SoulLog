@@ -3,13 +3,14 @@ import {
   User, Lock, Bell, Shield, BookOpen, Users, Palette,
   ChevronRight, Mail, Phone,
   Download, Trash2, Eye, Settings, Database, HelpCircle, LogOut,
-  ArrowLeft, Save, AlertTriangle, Check, Target, Calendar
+  ArrowLeft, Save, AlertTriangle, Check, Target, Calendar, MapPin
 } from 'lucide-react';
 import { Preferences } from '@capacitor/preferences';
 import { applyFontSize } from './appearance';
 import { ApiError, del, get, type PublicUser } from './api';
 import { logOut } from './session';
 import HelpCenter from './HelpCenter';
+import { Avatar } from './ui';
 import { goBack, navState, pushNav } from './nav';
 import type { Theme } from './theme';
 
@@ -214,6 +215,28 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+
+  // Room for the two-column Profile & Account page (tablets, laptops).
+  const [wideProfile, setWideProfile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 720px)').matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 720px)');
+    const onChange = () => setWideProfile(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  // Photo, username and join date for the card at the top of that page.
+  const [account, setAccount] = useState<{ username?: string; avatar_url?: string | null; joined?: string } | null>(null);
+  useEffect(() => {
+    get<{ username?: string; avatar_url?: string | null; joined?: string }>('/profile/')
+      .then(setAccount)
+      .catch(() => setAccount(null));
+  }, []);
+  const joinedLabel = account?.joined
+    ? new Date(account.joined).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    : '';
 
   // The social-management rows advertised counts nobody had ("2 blocked
   // accounts", "3 saved collections") and every one of them opened an
@@ -572,76 +595,106 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
   // `undefined` check narrows the type for all of them.
   const activeSectionMeta = sections.find((s) => s.id === activeSection);
 
-  const renderProfileSettings = () => (
-    <div className="space-y-4">
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Full Name</label>
-          <input 
-            type="text" 
-            value={settings.profile.name}
-            onChange={(e) => updateSetting('profile', 'name', e.target.value)}
-            className="w-full p-3 rounded-lg border text-sm"
-            style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-          />
-        </div>
+  /**
+   * Profile & Account.
+   *
+   * On a phone it's one simple column (unchanged). With room to spare it
+   * becomes a proper page: a card showing you as others see you, the
+   * fields in two columns with icons, and account security in its own
+   * card — instead of five full-width boxes stretched across the screen.
+   */
+  const inputStyle = { backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text };
+  const field = (
+    label: string,
+    icon: React.ReactNode,
+    control: React.ReactNode,
+    hint?: React.ReactNode,
+  ) => (
+    <label className="block">
+      <span className="flex items-center gap-2 text-sm font-medium mb-2">
+        <span style={{ color: theme.accent }} className="flex">{icon}</span>
+        {label}
+      </span>
+      {control}
+      {hint && <span className="block text-xs opacity-60 mt-1.5">{hint}</span>}
+    </label>
+  );
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Bio</label>
-          <textarea 
-            value={settings.profile.bio}
-            onChange={(e) => updateSetting('profile', 'bio', e.target.value)}
-            rows={3}
-            className="w-full p-3 rounded-lg border text-sm resize-none"
-            style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-          />
-        </div>
+  const renderProfileSettings = () => {
+    const nameInput = (
+      <input
+        type="text"
+        value={settings.profile.name}
+        onChange={(e) => updateSetting('profile', 'name', e.target.value)}
+        placeholder="Your name"
+        className="w-full p-3 rounded-lg border text-sm"
+        style={inputStyle}
+      />
+    );
+    const bioInput = (
+      <textarea
+        value={settings.profile.bio}
+        onChange={(e) => updateSetting('profile', 'bio', e.target.value)}
+        rows={wideProfile ? 4 : 3}
+        maxLength={2000}
+        placeholder="A few lines about you"
+        className="w-full p-3 rounded-lg border text-sm resize-none"
+        style={inputStyle}
+      />
+    );
+    const emailInput = (
+      <input
+        type="email"
+        value={settings.profile.email}
+        disabled
+        className="w-full p-3 rounded-lg border text-sm opacity-60 cursor-not-allowed"
+        style={inputStyle}
+      />
+    );
+    const emailHint = "Changing your email isn't supported here yet — it needs its own verification flow.";
+    const phoneInput = (
+      <input
+        type="tel"
+        value={settings.profile.phone}
+        onChange={(e) => updateSetting('profile', 'phone', e.target.value)}
+        placeholder="Optional"
+        className="w-full p-3 rounded-lg border text-sm"
+        style={inputStyle}
+      />
+    );
+    const locationInput = (
+      <input
+        type="text"
+        value={settings.profile.location}
+        onChange={(e) => updateSetting('profile', 'location', e.target.value)}
+        placeholder="City, country"
+        className="w-full p-3 rounded-lg border text-sm"
+        style={inputStyle}
+      />
+    );
+    const passwordButton = (
+      <Button theme={theme}
+        variant="outline"
+        className={wideProfile ? '' : 'w-full'}
+        onClick={() => setShowPasswordChange(!showPasswordChange)}
+      >
+        <Lock className="w-4 h-4" />
+        Change Password
+      </Button>
+    );
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Email</label>
-          <input
-            type="email"
-            value={settings.profile.email}
-            disabled
-            className="w-full p-3 rounded-lg border text-sm opacity-60 cursor-not-allowed"
-            style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-          />
-          <p className="text-xs opacity-60 mt-1">Changing your email isn't supported here yet — it needs its own verification flow.</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Phone</label>
-          <input 
-            type="tel" 
-            value={settings.profile.phone}
-            onChange={(e) => updateSetting('profile', 'phone', e.target.value)}
-            className="w-full p-3 rounded-lg border text-sm"
-            style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Location</label>
-          <input 
-            type="text" 
-            value={settings.profile.location}
-            onChange={(e) => updateSetting('profile', 'location', e.target.value)}
-            className="w-full p-3 rounded-lg border text-sm"
-            style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-          />
-        </div>
-      </div>
-
-      <div className="pt-4 space-y-3">
-        <Button theme={theme} 
-          variant="outline" 
-          className="w-full"
-          onClick={() => setShowPasswordChange(!showPasswordChange)}
-        >
-          <Lock className="w-4 h-4" />
-          Change Password
-        </Button>
-
+    if (!wideProfile) {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-4">
+            {field('Full Name', <User className="w-4 h-4" />, nameInput)}
+            {field('Bio', <BookOpen className="w-4 h-4" />, bioInput)}
+            {field('Email', <Mail className="w-4 h-4" />, emailInput, emailHint)}
+            {field('Phone', <Phone className="w-4 h-4" />, phoneInput)}
+            {field('Location', <MapPin className="w-4 h-4" />, locationInput)}
+          </div>
+          <div className="pt-4 space-y-3">
+            {passwordButton}
         {showPasswordChange && (
           <div className="space-y-3 p-4 rounded-lg" style={{ backgroundColor: `${theme.secondary}10` }}>
             <input
@@ -680,10 +733,137 @@ const SoulLogSettings = ({ theme, setHideExtra, isMobile=true, setActiveTab, ini
             </div>
           </div>
         )}
+          </div>
+        </div>
+      );
+    }
 
+    const card = { backgroundColor: theme.surface, border: `1px solid ${theme.border}` };
+    return (
+      <div className="space-y-6 text-left">
+        {/* You, as other people see you */}
+        <div
+          className="rounded-2xl p-6 flex items-center gap-5"
+          style={{
+            background: `linear-gradient(135deg, ${theme.accent}22, ${theme.secondary}18)`,
+            border: `1px solid ${theme.accent}33`,
+          }}
+        >
+          <Avatar
+            user={{ name: settings.profile.name || account?.username, avatarUrl: account?.avatar_url }}
+            theme={theme}
+            size={72}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xl font-semibold truncate">{settings.profile.name || 'Your name'}</p>
+            {account?.username && <p className="text-sm opacity-70 truncate">@{account.username}</p>}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs opacity-70">
+              {settings.profile.location && (
+                <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{settings.profile.location}</span>
+              )}
+              {joinedLabel && (
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Joined {joinedLabel}</span>
+              )}
+            </div>
+          </div>
+          {setActiveTab && (
+            <Button theme={theme} variant="outline" size="sm" onClick={() => setActiveTab('Profile')}>
+              <Eye className="w-4 h-4" />
+              View profile
+            </Button>
+          )}
+        </div>
+
+        {/* Personal details */}
+        <div className="rounded-2xl p-6" style={card}>
+          <div className="mb-5">
+            <h4 className="font-semibold">Personal details</h4>
+            <p className="text-xs opacity-60 mt-0.5">Changes save on their own as you type.</p>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1.25rem' }}>
+            {field('Full Name', <User className="w-4 h-4" />, nameInput)}
+            {field('Location', <MapPin className="w-4 h-4" />, locationInput)}
+            <div style={{ gridColumn: '1 / -1' }}>
+              {field(
+                'Bio',
+                <BookOpen className="w-4 h-4" />,
+                bioInput,
+                <span className="flex justify-between"><span>Shown on your profile under About Me.</span><span>{settings.profile.bio.length}/2000</span></span>,
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="rounded-2xl p-6" style={card}>
+          <div className="mb-5">
+            <h4 className="font-semibold">Contact</h4>
+            <p className="text-xs opacity-60 mt-0.5">Only shown on your profile if you allow it in Privacy & Security.</p>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1.25rem' }}>
+            {field('Email', <Mail className="w-4 h-4" />, emailInput, emailHint)}
+            {field('Phone', <Phone className="w-4 h-4" />, phoneInput)}
+          </div>
+        </div>
+
+        {/* Security */}
+        <div className="rounded-2xl p-6" style={card}>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: `${theme.accent}20` }}>
+                <Shield className="w-5 h-5" style={{ color: theme.accent }} />
+              </div>
+              <div>
+                <h4 className="font-semibold">Password</h4>
+                <p className="text-xs opacity-60 mt-0.5">Use a password you don't use anywhere else.</p>
+              </div>
+            </div>
+            {!showPasswordChange && passwordButton}
+          </div>
+          {showPasswordChange && <div className="mt-5">
+        {showPasswordChange && (
+          <div className="space-y-3 p-4 rounded-lg" style={{ backgroundColor: `${theme.secondary}10` }}>
+            <input
+              type="password"
+              placeholder="Current Password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full p-3 rounded-lg border text-sm"
+              style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
+            />
+            <input
+              type="password"
+              placeholder="New Password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-3 rounded-lg border text-sm"
+              style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
+            />
+            <input
+              type="password"
+              placeholder="Confirm New Password"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              className="w-full p-3 rounded-lg border text-sm"
+              style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
+            />
+            {passwordChangeError && (
+              <p className="text-sm" style={{ color: '#ff4757' }}>{passwordChangeError}</p>
+            )}
+            {passwordChangeSuccess && (
+              <p className="text-sm" style={{ color: theme.secondary }}>{passwordChangeSuccess}</p>
+            )}
+            <div className="flex gap-2">
+              <Button theme={theme} variant="primary" size="sm" onClick={handleUpdatePassword}>Update Password</Button>
+              <Button theme={theme} variant="ghost" size="sm" onClick={() => setShowPasswordChange(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+          </div>}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDataSettings = () => (
     <div className="space-y-4">

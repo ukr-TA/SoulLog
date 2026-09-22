@@ -406,7 +406,7 @@ const ChatList = ({
               {needle
                 ? `No one called “${query}”.`
                 : filter === 'archived'
-                  ? 'Nothing archived. Hold a chat to archive it.'
+                  ? 'Nothing archived.'
                   : filter === 'unread'
                     ? "You're all caught up."
                     : "No conversations yet. Start one from a connection's profile."}
@@ -452,9 +452,6 @@ const ChatList = ({
         )}
         {needle && peopleLoading && shown.length === 0 && (
           <p className="text-center text-xs mt-6" style={{ color: theme.text, opacity: 0.5 }}>Searching…</p>
-        )}
-        {filter === 'all' && shown.length > 0 && (
-          <p className="text-center text-xs mt-3 md:hidden" style={{ color: theme.text, opacity: 0.4 }}>Hold a chat for more options</p>
         )}
       </div>
 

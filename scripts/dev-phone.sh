@@ -90,6 +90,20 @@ for _ in $(seq 1 40); do
   sleep 1
 done
 
+# A brand-new tunnel address takes a little while to go live. A phone
+# that opens it too early gets "site can't be reached" — and then keeps
+# remembering that for several minutes. So only show the address once it
+# actually answers here.
+if [ -n "$URL" ]; then
+  echo "Waiting for the phone address to go live..."
+  READY=""
+  for _ in $(seq 1 60); do
+    if curl -s -o /dev/null --max-time 5 "$URL"; then READY=1; break; fi
+    sleep 2
+  done
+  [ -z "$READY" ] && echo "  (It isn't answering yet — give it another minute before opening it.)"
+fi
+
 echo
 echo "  ┌──────────────────────────────────────────────────────────────┐"
 if [ -n "$URL" ]; then
